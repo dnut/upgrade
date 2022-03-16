@@ -21,7 +21,7 @@ get_bool() { name=$1
 sudo -u upgrade sudo pacman -Syu --noconfirm
 
 if get_bool upgrade_aur; then
-    sudo -u upgrade paru --removemake --answerclean None --answerdiff None --answeredit None -Syu --noconfirm
+    sudo -u upgrade paru --removemake --answerdiff None --answeredit None -Syu --noconfirm
 fi
 
 if get_bool clean_cache_on_success; then
