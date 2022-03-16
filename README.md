@@ -10,6 +10,10 @@ You should always keep your system up to date! But the automation can be disable
 
 To ensure that automated system upgrades do not interrupt normal system functioning, kernel-modules-hook is also a dependency.
 
+## Installation
+
+[upgrade](https://aur.archlinux.org/packages/upgrade) is available in the Arch User Repository.
+
 ## Configuration
 
 ### /etc/upgrade.conf
