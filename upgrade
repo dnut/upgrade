@@ -1,5 +1,5 @@
 #!/usr/bin/bash
-set -euxo pipefail
+set -euo pipefail
 
 parse_config() { path=$1; desired_setting=$2;
     ret=''

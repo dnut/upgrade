@@ -1,5 +1,5 @@
 #!/usr/bin/bash
-set -euxo pipefail
+set -euo pipefail
 
 sudo -u upgrade rm -rf /home/upgrade/.cache/paru/clone/
 sudo rm -rf /var/cache/pacman/pkg/*
