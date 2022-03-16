@@ -17,11 +17,10 @@ get_bool() { name=$1
     [[ $(parse_config /etc/upgrade.conf $name) == true ]]
 }
 
-
-sudo -u upgrade sudo pacman -Syu --noconfirm
-
 if get_bool upgrade_aur; then
     sudo -u upgrade paru --removemake -Syu --noconfirm
+else
+    sudo -u upgrade sudo pacman -Syu --noconfirm
 fi
 
 if get_bool clean_cache_on_success; then
