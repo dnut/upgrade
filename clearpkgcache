@@ -1,0 +1,9 @@
+#!/usr/bin/bash
+set -euxo pipefail
+
+sudo -u upgrade rm -rf /home/upgrade/.cache/paru/clone/
+sudo rm -rf /var/cache/pacman/pkg/*
+
+# may be useful - cleans the folder including hidden files without complaining: 
+# https://unix.stackexchange.com/questions/77127/rm-rf-all-files-and-all-hidden-files-without-error
+#sudo -u upgrade find /home/upgrade/.cache -name . -o -prune -exec rm -rf -- {} +

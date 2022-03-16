@@ -1,0 +1,10 @@
+[Unit]
+Description=Run upgrade.service 15 minutes after boot, and every day at 5:30 am.
+
+[Timer]
+OnBootSec=15min
+OnCalendar=*-*-* 05:30:00
+Unit=upgrade.service
+
+[Install]
+WantedBy=timers.target

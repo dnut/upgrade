@@ -1,0 +1,6 @@
+[Unit]
+Description=Execute a system upgrade.
+
+[Service]
+Type=simple
+ExecStart=/usr/local/bin/upgrade
