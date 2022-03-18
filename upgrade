@@ -1,7 +1,7 @@
 #!/usr/bin/bash
 set -euo pipefail
 
-parse_config() { path=$1; desired_setting=$2;
+parse_config() { local path=$1; local desired_setting=$2;
     ret=''
     while IFS="=" read -r name value || [ -n "$name" ]; do
         name="$(xargs<<<$name)"
@@ -13,7 +13,7 @@ parse_config() { path=$1; desired_setting=$2;
     echo $ret
 }
 
-get_bool() { name=$1
+get_bool() { local name=$1
     [[ $(parse_config /etc/upgrade.conf $name) == true ]]
 }
 
