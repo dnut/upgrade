@@ -23,4 +23,4 @@ To ensure that automated system upgrades do not interrupt normal system function
 
 ### /etc/group
 
-Anyone in the `upgraders` group has permission to execute the upgrade command.
+Anyone in the `upgraders` group has permission to execute `upgrade` or `clearpkgcache` without typing a password.

@@ -1,8 +1,12 @@
 #!/usr/bin/bash
 set -euo pipefail
 
-yes | sudo -u upgrade sudo pacman -Scc
-sudo -u upgrade rm -rf /home/upgrade/.cache/paru/clone/
+if [[ $(whoami) != upgrade ]]; then
+    exec sudo -u upgrade "${BASH_SOURCE[0]}"
+fi
+
+yes | sudo pacman -Scc
+rm -rf /home/upgrade/.cache/paru/clone/
 
 # may be useful - cleans the folder including hidden files without complaining: 
 # https://unix.stackexchange.com/questions/77127/rm-rf-all-files-and-all-hidden-files-without-error

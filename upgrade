@@ -1,6 +1,10 @@
 #!/usr/bin/bash
 set -euo pipefail
 
+if [[ $(whoami) != upgrade ]]; then
+    exec sudo -u upgrade "${BASH_SOURCE[0]}"
+fi
+
 parse_config() { local path=$1; local desired_setting=$2;
     ret=''
     while IFS="=" read -r name value || [ -n "$name" ]; do
@@ -18,9 +22,9 @@ get_bool() { local name=$1
 }
 
 if get_bool upgrade_aur; then
-    sudo -u upgrade paru --removemake -Syu --noconfirm
+    paru --removemake -Syu --noconfirm
 else
-    sudo -u upgrade sudo pacman -Syu --noconfirm
+    sudo pacman -Syu --noconfirm
 fi
 
 if get_bool clean_cache_on_success; then
