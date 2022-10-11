@@ -1,5 +1,5 @@
 #!/usr/bin/bash
-set -euo pipefail
+set -eu
 
 if [[ $(whoami) != upgrade ]]; then
     exec sudo -u upgrade "${BASH_SOURCE[0]}"
