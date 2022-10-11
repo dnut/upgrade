@@ -6,7 +6,7 @@ Finally, there is one command, `upgrade`, to upgrade your entire system with zer
 
 This package currently uses paru under the hood, but will adapt as necessary, always using the most reliable aur helper currently available.
 
-You should always keep your system up to date! But the automation can be disabled if desired. Automation is handled by a systemd timer (upgrade.timer) that is enabled by default upon install. If there are conflicts or other problems with the upgrade, you will need to manually resolve them. So it's a good idea to check occasionally that upgrade.service is succeeding.
+You should always keep your system up to date! But the automation can be disabled if desired. Automation is handled by a systemd timer (upgrade.timer) that is enabled by default upon install. If there are conflicts or other problems with the upgrade, you will need to manually resolve them. So it's a good idea to occasionally check `journalctl -u upgrade` for any errors.
 
 To ensure that automated system upgrades do not interrupt normal system functioning, kernel-modules-hook is also a dependency.
 
@@ -23,4 +23,4 @@ To ensure that automated system upgrades do not interrupt normal system function
 
 ### /etc/group
 
-Anyone in the `upgraders` group has permission to execute `upgrade` or `clearpkgcache` without typing a password.
+Anyone in the `upgraders` group has permission to execute `upgrade` or `clearpkgcache` without typing a password. This requires /etc/sudoers to `@includedir /etc/sudoers.d`, which is already included by default in the arch linux installation of sudo.

@@ -1,0 +1,2 @@
+upgrade ALL=(ALL) NOPASSWD: /usr/bin/pacman
+%upgraders ALL=(upgrade) NOPASSWD: /usr/bin/upgrade, /usr/bin/clearpkgcache
