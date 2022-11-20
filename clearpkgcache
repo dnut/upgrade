@@ -5,7 +5,7 @@ if [[ $(whoami) != upgrade ]]; then
     exec sudo -u upgrade "${BASH_SOURCE[0]}"
 fi
 
-yes | sudo pacman -Scc
+sudo pacman -Scc --noconfirm
 rm -rf /home/upgrade/.cache/paru/clone/
 
 # may be useful - cleans the folder including hidden files without complaining: 
