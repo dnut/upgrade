@@ -1,9 +1,9 @@
 [Unit]
-Description=Run upgrade.service 15 minutes after boot, and every day at 5:30 am.
+Description=Run upgrade.service 15 minutes after boot, and then every hour.
 
 [Timer]
 OnBootSec=15min
-OnCalendar=*-*-* 05:30:00
+OnUnitInactiveSec=60min
 Unit=upgrade.service
 
 [Install]
