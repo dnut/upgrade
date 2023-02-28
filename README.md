@@ -2,7 +2,7 @@
 
 Simplify Arch Linux upgrades.
 
-Finally, there is one command, `upgrade`, to upgrade your entire system with zero user input. By default, upgrade runs automatically every day at 5:30 am and 15 minutes after boot.
+Finally, there is one command, `upgrade`, to upgrade your entire system with zero user input. By default, upgrade runs automatically every hour and 15 minutes after boot.
 
 Please read the [Risks](#risks) section below to understand why this functionality is not built-in to the system already, and why I have created it.
 
