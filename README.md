@@ -18,8 +18,9 @@ To ensure that automated system upgrades do not interrupt normal system function
 
 ### /etc/upgrade.conf
 
-- `upgrade_aur`: Set to false if you are not interested in automating AUR upgrades, and only want to install packages from pacman's configured repositories.
-- `clean_cache_on_success`: Set to false if you would like to persist the package cache indefinitely.
+- `upgrade_aur`: (default=true) Set to false if you are not interested in automating AUR upgrades, and only want to install packages from pacman's configured repositories.
+- `upgrade_flatpak`: (default=false) Set to true if you would like to automate upgrades of system-wide flatpak packages. This will require flatpak to be installed.
+- `clean_cache_on_success`: (default=true) Set to false if you would like to persist the package cache indefinitely.
 
 ### /etc/group
 
