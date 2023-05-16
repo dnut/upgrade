@@ -28,7 +28,9 @@ else
 fi
 
 if get_bool upgrade_flatpak; then
-    flatpak update
+    if command -v flatpak; then
+        flatpak update
+    fi
 fi
 
 if get_bool clean_cache_on_success; then
