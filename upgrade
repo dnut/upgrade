@@ -27,10 +27,8 @@ else
     sudo pacman -Syu --noconfirm
 fi
 
-if get_bool upgrade_flatpak; then
-    if command -v flatpak; then
-        flatpak update
-    fi
+if get_bool upgrade_flatpak && command -v flatpak >/dev/null; then
+    flatpak update
 fi
 
 if get_bool clean_cache_on_success; then
