@@ -28,7 +28,7 @@ else
 fi
 
 if get_bool upgrade_flatpak && command -v flatpak >/dev/null; then
-    flatpak update --noninteractive
+    sudo flatpak update --noninteractive
 fi
 
 if get_bool clean_cache_on_success; then
