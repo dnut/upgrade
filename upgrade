@@ -22,12 +22,15 @@ get_bool() { local name=$1
 }
 
 if get_bool upgrade_aur; then
+    echo Upgrading the system with paru.
     paru --removemake -Syu --noconfirm
 else
+    echo Upgrading the system with pacman.
     sudo pacman -Syu --noconfirm
 fi
 
 if get_bool upgrade_flatpak && command -v flatpak >/dev/null; then
+    echo Upgrading flatpak packages.
     sudo flatpak update --noninteractive
 fi
 
