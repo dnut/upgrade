@@ -1,2 +1,10 @@
+# DO NOT CHANGE THIS FILE
+#
+# This file is installed by the package manager.
+# Any changes will be overwritten when the package is upgraded.
+# This file must remain unchanged for the "upgrade" package to work.
+# If you would like to grant upgrade permissions for a user, do not
+# change this file. Instead, add the user to the "upgraders" group.
+
 upgrade ALL=(ALL) NOPASSWD: /usr/bin/pacman, /usr/bin/flatpak
 %upgraders ALL=(upgrade) NOPASSWD: /usr/bin/upgrade, /usr/bin/clearpkgcache
