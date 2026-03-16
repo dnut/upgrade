@@ -6,7 +6,7 @@ Finally, there is one command, `upgrade`, to upgrade your entire system with zer
 
 Please read the [Risks](#risks) section below to understand why this functionality is not built-in to the system already, and why I have created it.
 
-This package currently uses paru under the hood, but will adapt as necessary, always using the most reliable aur helper currently available.
+If you choose to enable AUR upgrades, `upgrade` will use either yay or paru under the hood, depending on what you have installed. It prefers yay if both are installed.
 
 You should always keep your system up to date! But the automation can be disabled if desired. Automation is handled by a systemd timer (upgrade.timer) that is enabled by default upon install. If there are conflicts or other problems with the upgrade, you will need to manually resolve them. So it's a good idea to occasionally check `journalctl -u upgrade` for any errors.
 

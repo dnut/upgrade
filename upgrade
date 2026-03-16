@@ -21,12 +21,19 @@ get_bool() { local name=$1
     [[ $(parse_config /etc/upgrade.conf $name) == true ]]
 }
 
+echo Upgrading the system with pacman.
+sudo pacman -Syu --noconfirm
+
 if get_bool upgrade_aur; then
-    echo Upgrading the system with paru.
-    paru --removemake -Syu --noconfirm
-else
-    echo Upgrading the system with pacman.
-    sudo pacman -Syu --noconfirm
+    if command -q yay; then
+        echo Upgrading AUR packages with yay.
+        yay --removemake -Syu --noconfirm
+    elif command -q paru; then
+        echo Upgrading AUR packages with paru.
+        paru --removemake -Syu --noconfirm
+    else
+        echo No AUR helper found, skipping AUR package upgrades.
+    fi
 fi
 
 if get_bool upgrade_flatpak && command -v flatpak >/dev/null; then
