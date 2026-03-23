@@ -25,10 +25,10 @@ echo Upgrading the system with pacman.
 sudo pacman -Syu --noconfirm
 
 if get_bool upgrade_aur; then
-    if command -q yay; then
+    if command -v yay >/dev/null; then
         echo Upgrading AUR packages with yay.
         yay --removemake -Syu --noconfirm
-    elif command -q paru; then
+    elif command -v paru >/dev/null; then
         echo Upgrading AUR packages with paru.
         paru --removemake -Syu --noconfirm
     else
