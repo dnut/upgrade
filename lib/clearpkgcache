@@ -7,9 +7,6 @@ set -eu
 paccache -rk2
 paccache -ruk1
 
-# as the aur-upgrader user, because root deleting inside its home could follow a symlink planted there
-/usr/lib/upgrade/as-aur-upgrader rm -rf /var/lib/aur-upgrader/.cache/paru/clone
-
-# may be useful - cleans the folder including hidden files without complaining:
-# https://unix.stackexchange.com/questions/77127/rm-rf-all-files-and-all-hidden-files-without-error
-#sudo -u aur-upgrader find /var/lib/aur-upgrader/.cache -name . -o -prune -exec rm -rf -- {} +
+# the AUR builds in aur-upgrader's home: yay's, paru's and self-upgrade's. as aur-upgrader, because
+# root deleting inside its home could follow a symlink planted there.
+/usr/lib/upgrade/as-aur-upgrader rm -rf /var/lib/aur-upgrader/.cache
