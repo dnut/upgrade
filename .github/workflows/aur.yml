@@ -11,9 +11,15 @@ jobs:
     container: archlinux:base-devel
     # the aur environment holds the AUR_SSH_KEY secret, and only lets version tags use it
     environment: aur
+    # the job's github token only needs to read the repo
+    permissions:
+      contents: read
     steps:
-      # pinned to a commit, since this job can push to the AUR
+      # pinned to a commit, since this job can push to the AUR. it doesn't need to keep the github
+      # token in the checkout either.
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
 
       - name: Publish to the AUR
         env:
