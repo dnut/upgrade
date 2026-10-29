@@ -1,0 +1,14 @@
+#!/usr/bin/bash
+# builds the package from this checkout, including uncommitted changes, instead of the github release
+# the PKGBUILD names. takes makepkg's options, for example ./makepkg-local -si to also install it.
+# makepkg works in a temporary folder that's removed afterwards, so nothing is left in the checkout.
+# to keep the package, set PKGDEST to where it should go.
+set -euo pipefail
+cd "$(dirname "$0")"
+source PKGBUILD
+build=$(mktemp -d)
+trap 'rm -rf "$build"' EXIT
+# the source makepkg would download is a link to this checkout instead
+mkdir -p "$build/$pkgname/src"
+ln -s "$PWD" "$build/$pkgname/src/$pkgname-$pkgver"
+BUILDDIR=$build PKGDEST=${PKGDEST:-$build} LOGDEST=$build makepkg --noextract --force "$@"

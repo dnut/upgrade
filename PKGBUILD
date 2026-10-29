@@ -1,0 +1,34 @@
+# Maintainer: Drew Nutter <dnut@users.noreply.github.com>
+pkgname=upgrade
+pkgver=0.4.0
+pkgrel=1
+pkgdesc='Automate system upgrades'
+arch=('any')
+url='https://github.com/dnut/upgrade'
+license=('GPL3')
+depends=('kernel-modules-hook' 'polkit' 'python' 'pyalpm' 'pacman-contrib')
+optdepends=('yay: upgrade AUR packages'
+            'paru: upgrade AUR packages'
+            'flatpak: upgrade flatpak packages')
+install=$pkgname.install
+# the release tagged with this version. ./makepkg-local builds the checkout it's in instead.
+source=("$pkgname-$pkgver::git+https://github.com/dnut/upgrade#tag=$pkgver")
+sha256sums=('SKIP')
+
+package() {
+    cd "$srcdir/$pkgname-$pkgver"
+
+    install -Dm755 -t "$pkgdir/usr/bin" upgrade autoremove clearpkgcache
+    install -Dm755 -t "$pkgdir/usr/lib/upgrade" lib/{as-aur-upgrader,autoremove,clearpkgcache,locked,start,upgrade}
+    install -Dm644 -t "$pkgdir/usr/lib/upgrade" lib/defaults.toml
+
+    install -Dm644 -t "$pkgdir/usr/lib/systemd/system" upgrade.service upgrade.timer autoremove.service clearpkgcache.service
+    install -Dm644 -t "$pkgdir/usr/share/polkit-1/rules.d" upgrade.rules
+
+    # sudo's own mode for the folder, so pacman doesn't warn that they differ
+    install -dm750 "$pkgdir/etc/sudoers.d"
+    install -m640 upgrade.sudoers "$pkgdir/etc/sudoers.d/upgrade"
+
+    install -Dm644 upgrade.sysusers "$pkgdir/usr/lib/sysusers.d/upgrade.conf"
+    install -Dm644 upgrade.tmpfiles "$pkgdir/usr/lib/tmpfiles.d/upgrade.conf"
+}

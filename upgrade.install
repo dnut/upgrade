@@ -1,0 +1,15 @@
+post_install() {
+    printf '\nTo enable automatic upgrades, run:\n'
+    printf '  sudo systemctl enable --now upgrade.timer\n\n'
+}
+
+post_upgrade() {
+    if (( $(vercmp "$2" 0.4.0) < 0 )); then
+        # pacman renames a changed upgrade.conf to .pacsave, since the package no longer ships it
+        if [[ -e /etc/upgrade.conf.pacsave && ! -e /etc/upgrade.toml ]]; then
+            mv /etc/upgrade.conf.pacsave /etc/upgrade.toml
+            echo "Moved your settings from /etc/upgrade.conf to /etc/upgrade.toml."
+        fi
+        echo "AUR packages are now only upgraded if /etc/upgrade.toml sets upgrade_aur = true."
+    fi
+}
