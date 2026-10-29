@@ -9,7 +9,7 @@ config=/etc/upgrade.toml
 enabled=$(python -I -c '
 import sys, tomllib
 options = tomllib.load(open(sys.argv[1], "rb")) | tomllib.load(open(sys.argv[2], "rb"))
-[print(name) for name, value in options.items() if value in (True, "true")]
+[print(name) for name, value in options.items() if value is True or value == "true"]
 ' /usr/lib/upgrade/defaults.toml "$config")
 is_enabled() { grep -qxF "$1" <<<"$enabled"; }
 
