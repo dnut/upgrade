@@ -1,0 +1,6 @@
+#!/usr/bin/bash
+# runs a command as the aur-upgrader user, from the root workers. setpriv rather than runuser,
+# because runuser goes through pam, which can move the command out of the service's cgroup.
+# anything the command leaves running in the background stays in that cgroup, so systemd kills
+# it with the service when the run ends.
+exec setpriv --reuid=aur-upgrader --regid=aur-upgrader --init-groups --reset-env /usr/bin/env PATH=/usr/bin "$@"

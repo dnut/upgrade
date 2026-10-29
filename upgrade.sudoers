@@ -6,6 +6,6 @@
 # If you would like to grant upgrade permissions for a user, do not
 # change this file. Instead, add the user to the "upgraders" group.
 
-# upgrade.service runs yay or paru as the upgrade user, and they need this to install AUR packages
+# upgrade.service runs yay or paru as the aur-upgrader user, and they need this to install AUR packages
 # this lets AUR builds get root, see "AUR packages" in the README
-upgrade ALL=(root) NOPASSWD: /usr/bin/pacman
+aur-upgrader ALL=(root) NOPASSWD: /usr/bin/pacman

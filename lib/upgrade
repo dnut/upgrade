@@ -45,14 +45,14 @@ read_config /etc/upgrade.conf
 echo Upgrading the system with pacman.
 pacman -Syu --noconfirm
 
-# AUR packages are built as the upgrade user, since makepkg refuses to run as root
+# AUR packages are built as the aur-upgrader user, since makepkg refuses to run as root
 if get_bool upgrade_aur; then
     if command -v yay >/dev/null; then
         echo Upgrading AUR packages with yay.
-        /usr/lib/upgrade/as-upgrade yay --removemake -Syu --noconfirm
+        /usr/lib/upgrade/as-aur-upgrader yay --removemake -Syu --noconfirm
     elif command -v paru >/dev/null; then
         echo Upgrading AUR packages with paru.
-        /usr/lib/upgrade/as-upgrade paru --removemake -Syu --noconfirm
+        /usr/lib/upgrade/as-aur-upgrader paru --removemake -Syu --noconfirm
     else
         echo No AUR helper found, skipping AUR package upgrades.
     fi

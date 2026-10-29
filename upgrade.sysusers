@@ -1,4 +1,4 @@
-# builds AUR packages for upgrade.service. it is not a member of upgraders.
-u upgrade - "AUR builds for the upgrade package" /home/upgrade
+# builds AUR packages for upgrade.service. it can run pacman as root, see upgrade.sudoers.
+u aur-upgrader - "AUR builds for the upgrade package" /var/lib/aur-upgrader
 # members may start the upgrade, autoremove and clearpkgcache services, see upgrade.rules
 g upgraders -

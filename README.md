@@ -44,9 +44,9 @@ All the following default to true. Each option in the file must be set to `true`
 
 ### /etc/group
 
-Anyone in the `upgraders` group can run `upgrade`, `clearpkgcache` or `autoremove` without typing a password. A polkit rule lets them start the three services, but not stop, restart or kill them, and it doesn't give them any other privileges. Members of `wheel` can already start the services after typing their own password. The `upgrade` user, which builds AUR packages, should not be in `upgraders`.
+Anyone in the `upgraders` group can run `upgrade`, `clearpkgcache` or `autoremove` without typing a password. A polkit rule lets them start the three services, but not stop, restart or kill them, and it doesn't give them any other privileges. Members of `wheel` can already start the services after typing their own password.
 
-The `upgrade` user is allowed to run pacman through sudo, so that yay or paru can install AUR packages. This requires /etc/sudoers to `@includedir /etc/sudoers.d`, which is already included by default in the arch linux installation of sudo. See [AUR packages](#aur-packages) for what this means for security.
+The `aur-upgrader` user is allowed to run pacman through sudo, so that yay or paru can install AUR packages. This requires /etc/sudoers to `@includedir /etc/sudoers.d`, which is already included by default in the arch linux installation of sudo. See [AUR packages](#aur-packages) for what this means for security.
 
 ## Removing orphaned packages
 
@@ -72,6 +72,6 @@ I have been using this tool for a few years on several servers and personal comp
 
 When `upgrade_aur` is enabled, which is the default, `upgrade` builds and installs new versions of your AUR packages every hour without showing them to you first. Nobody reviews AUR packages before they're published, and malicious changes have reached the AUR before, including in packages that someone took over from their previous maintainer. Once a package is installed, its files and install scripts run as root. So you're trusting the maintainer of every AUR package you have installed, and anyone who gets into their account, with root access to your system.
 
-The builds run as the `upgrade` user, which can run pacman as root through sudo, because yay and paru need that to install packages and their build dependencies. So code that runs during a build can also get root. Building as a user without sudo wouldn't remove the risk, because the package a build produces is installed as root anyway. Only root and the upgrade services run anything as the `upgrade` user, so no other user can use its sudo access.
+The builds run as the `aur-upgrader` user, which can run pacman as root through sudo, because yay and paru need that to install packages and their build dependencies. So code that runs during a build can also get root. Building as a user without sudo wouldn't remove the risk, because the package a build produces is installed as root anyway. Only root and the upgrade services run anything as `aur-upgrader`, so no other user can use its sudo access. Keep it that way: anyone who can run commands as `aur-upgrader`, for example through a sudo rule, can get root.
 
 If you want to read AUR changes before they're installed, set `upgrade_aur=false` in /etc/upgrade.conf, and upgrade AUR packages yourself with yay or paru, which can show you the changes first.

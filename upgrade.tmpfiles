@@ -1,4 +1,4 @@
 # the lock that the upgrade services share. mode 600, so only root can hold it and block upgrades.
 f /run/upgrade.lock 0600 root root -
-# home of the upgrade user, which builds AUR packages
-d /home/upgrade 0700 upgrade upgrade -
+# home of the aur-upgrader user, which builds AUR packages
+d /var/lib/aur-upgrader 0700 aur-upgrader aur-upgrader -
