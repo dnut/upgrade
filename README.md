@@ -2,13 +2,13 @@
 
 Automate Arch Linux upgrades.
 
-Finally, there is one command, `upgrade`, to upgrade your entire system with zero user input. By default, upgrade runs automatically every hour and 15 minutes after boot, so you never need to run a manual upgrade again.
+Finally, there is one command, `upgrade`, to upgrade your entire system with zero user input. Once you turn on its timer, upgrade runs automatically every hour and 15 minutes after boot, so you never need to run a manual upgrade again.
 
 Please read the [Risks](#risks) section below to understand why this functionality is not built-in to the system already, and why I have created it.
 
 If you choose to enable AUR upgrades, `upgrade` will use either yay or paru under the hood, depending on what you have installed. It prefers yay if both are installed.
 
-You should always keep your system up to date! But the automation can be disabled if desired. Automation is handled by a systemd timer (upgrade.timer) that is enabled by default upon install. If there are conflicts or other problems with the upgrade, you will need to manually resolve them. So it's a good idea to occasionally check `journalctl -u upgrade` for any errors.
+You should always keep your system up to date! Automation is handled by a systemd timer, upgrade.timer, which isn't enabled when the package is installed. To turn it on, run `systemctl enable --now upgrade.timer`, as pacman reminds you after installing. If there are conflicts or other problems with the upgrade, you will need to manually resolve them. So it's a good idea to occasionally check `journalctl -u upgrade` for any errors.
 
 ## Running it yourself
 
@@ -52,7 +52,7 @@ Pushing a tag publishes the PKGBUILD to the AUR, through the workflow in `.githu
 
 ### /etc/group
 
-Anyone in the `upgraders` group can run `upgrade`, `clearpkgcache` or `autoremove` without typing a password. A polkit rule lets them start the three services, but not stop, restart or kill them, and it doesn't give them any other privileges. Members of `wheel` can already start the services after typing their own password.
+Anyone in the `upgraders` group can run `upgrade`, `clearpkgcache` or `autoremove` without typing a password. A polkit rule lets them start the three services, but not stop, restart or kill them. polkit can't see how systemd is asked to queue a start, though, so they can also pass systemctl's `--job-mode`, which can cancel other queued systemd jobs, or keep a run from being stopped until it ends. Only add users you trust with that. Members of `wheel` can already start the services after typing their own password.
 
 The `aur-upgrader` user is allowed to run pacman through sudo, so that yay or paru can install AUR packages. This requires /etc/sudoers to `@includedir /etc/sudoers.d`, which is already included by default in the arch linux installation of sudo. See [AUR packages](#aur-packages) for what this means for security.
 

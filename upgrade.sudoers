@@ -3,8 +3,8 @@
 # This file is installed by the package manager.
 # Any changes will be overwritten when the package is upgraded.
 # This file must remain unchanged for the "upgrade" package to work.
-# If you would like to grant upgrade permissions for a user, do not
-# change this file. Instead, add the user to the "upgraders" group.
+# To let a user run upgrade, add them to the "upgraders" group, which
+# /usr/share/polkit-1/rules.d/upgrade.rules allows to start the services.
 
 # upgrade.service runs yay or paru as the aur-upgrader user, and they need this to install AUR packages
 # this lets AUR builds get root, see "AUR packages" in the README
