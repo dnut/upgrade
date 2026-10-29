@@ -7,23 +7,45 @@ if [[ $(whoami) != upgrade ]]; then
     exec sudo -u upgrade "${BASH_SOURCE[0]}"
 fi
 
-parse_config() { local path=$1; local desired_setting=$2;
-    ret=''
-    while IFS="=" read -r name value || [ -n "$name" ]; do
-        name="$(xargs<<<$name)"
-        value="$(xargs<<<${value//\"/})"
-        if [[ "${name//\"/}" == $desired_setting ]]; then
-            ret="${value//\"/}"
+# defaults for options that are missing from /etc/upgrade.conf
+declare -A config=(
+    [upgrade_aur]=true
+    [upgrade_flatpak]=true
+    [clean_cache_on_success]=true
+    [autoremove]=true
+)
+
+# fail instead of guessing if the config can't be read, or has a line that isn't a comment,
+# name=true or name=false, so a typo can't silently turn an option on.
+read_config() { local path=$1 line name value number=0
+    local comment='^[[:space:]]*(#.*)?$'
+    local option='^[[:space:]]*([a-z_]+)[[:space:]]*=[[:space:]]*(true|false|"true"|"false")[[:space:]]*$'
+    if [[ ! -r $path ]]; then
+        echo "Cannot read $path." >&2
+        exit 1
+    fi
+    while IFS= read -r line || [[ -n $line ]]; do
+        number=$((number + 1))
+        [[ $line =~ $comment ]] && continue
+        if [[ ! $line =~ $option ]]; then
+            echo "$path:$number: expected name=true or name=false, got: $line" >&2
+            exit 1
         fi
+        name=${BASH_REMATCH[1]}
+        value=${BASH_REMATCH[2]//\"/}
+        if [[ -z ${config[$name]+set} ]]; then
+            echo "$path:$number: unknown option: $name" >&2
+            exit 1
+        fi
+        config[$name]=$value
     done < "$path"
-    echo $ret
 }
 
 get_bool() { local name=$1
-    local value=$(parse_config /etc/upgrade.conf $name)
-    # options missing from the config default to true
-    [[ ${value:-true} == true ]]
+    [[ ${config[$name]} == true ]]
 }
+
+read_config /etc/upgrade.conf
 
 echo Upgrading the system with pacman.
 sudo pacman -Syu --noconfirm

@@ -20,7 +20,7 @@ To ensure that automated system upgrades do not interrupt normal system function
 
 ### /etc/upgrade.conf
 
-All the following default to true.
+All the following default to true. Each option in the file must be set to `true` or `false`. If the file can't be read, or has any other line apart from comments, `upgrade` stops with an error.
 - `upgrade_aur`: Set to false if you are not interested in automating AUR upgrades, and only want to install packages from pacman's configured repositories.
 - `upgrade_flatpak`: Set to false if you would like to prevent upgrades of system-wide flatpak packages.
 - `clean_cache_on_success`: Set to false if you would like to persist the package cache indefinitely.
