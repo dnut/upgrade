@@ -1,5 +1,7 @@
 #!/usr/bin/bash
 set -eu
+# don't trust the caller's PATH, since this escalates through upgrade to root
+export PATH=/usr/local/sbin:/usr/local/bin:/usr/bin
 
 if [[ $(whoami) != upgrade ]]; then
     exec sudo -u upgrade "${BASH_SOURCE[0]}"
