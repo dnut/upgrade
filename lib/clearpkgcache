@@ -1,19 +1,15 @@
 #!/usr/bin/bash
+# the clearpkgcache worker. runs as root, from upgrade-clearpkgcache.service or the upgrade worker.
 set -eu
-# don't trust the caller's PATH, since this escalates through upgrade to root
-export PATH=/usr/local/sbin:/usr/local/bin:/usr/bin
-
-if [[ $(whoami) != upgrade ]]; then
-    exec sudo -u upgrade "${BASH_SOURCE[0]}"
-fi
 
 # keep the two most recent versions of each installed package, and the most recent version of each
 # uninstalled package, so a bad update can still be rolled back and a removed package reinstalled.
-sudo paccache -rk2
-sudo paccache -ruk1
+paccache -rk2
+paccache -ruk1
 
-rm -rf /home/upgrade/.cache/paru/clone/
+# as the upgrade user, because root deleting inside its home could follow a symlink planted there
+/usr/lib/upgrade/as-upgrade rm -rf /home/upgrade/.cache/paru/clone
 
-# may be useful - cleans the folder including hidden files without complaining: 
+# may be useful - cleans the folder including hidden files without complaining:
 # https://unix.stackexchange.com/questions/77127/rm-rf-all-files-and-all-hidden-files-without-error
 #sudo -u upgrade find /home/upgrade/.cache -name . -o -prune -exec rm -rf -- {} +

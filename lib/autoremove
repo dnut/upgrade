@@ -6,14 +6,11 @@ By default this is a conservative autoremove that leaves behind:
 - any config files for the package that were modified by the user, unless --config
 """
 
-import os
-
-# don't trust the caller's PATH, since this escalates through upgrade to root
-os.environ["PATH"] = "/usr/local/sbin:/usr/local/bin:/usr/bin"
+# the autoremove worker. root runs it through the autoremove command or upgrade-autoremove.service,
+# and anyone can run it with --dry-run, since reading the package database needs no privileges.
 
 import argparse
-import pwd
-import sys
+import os
 
 import pyalpm
 import pycman.config
@@ -45,10 +42,6 @@ def main():
     )
     args = parser.parse_args()
 
-    if os.geteuid() != pwd.getpwnam("upgrade").pw_uid:
-        rerun_as_upgrade = ["sudo", "-u", "upgrade", os.path.abspath(__file__), *sys.argv[1:]]
-        execvp(args.dry_run, "sudo", rerun_as_upgrade)
-
     handle = pycman.config.init_with_config("/etc/pacman.conf")
     unneeded = unneeded_packages(handle.get_localdb().pkgcache, not args.optdeps)
     if not unneeded:
@@ -61,7 +54,7 @@ def main():
         flags.append("-n")  # -n deletes modified config files instead of keeping them as .pacsave
     print("Removing orphaned packages.", flush=True)
     # -- so a package name can never be read as a pacman option
-    execvp(args.dry_run, "sudo", ["sudo", "pacman", "-R", *flags, "--", *unneeded])
+    execvp(args.dry_run, "pacman", ["pacman", "-R", *flags, "--", *unneeded])
 
 
 def execvp(dry_run, cmd, args):

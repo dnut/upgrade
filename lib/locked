@@ -1,0 +1,14 @@
+#!/usr/bin/bash
+# runs a command while holding the lock that the upgrade, autoremove and clearpkgcache services
+# share, so they never run at the same time. the workers don't lock, so they can run each other.
+# tmpfiles creates the lock with mode 600, so only root can open it and block upgrades.
+set -euo pipefail
+
+lock=/run/upgrade.lock
+[[ -e $lock ]] || (umask 077 && : >>"$lock")
+exec 9<"$lock"
+if ! flock -n 9; then
+    echo Waiting for another upgrade, autoremove or clearpkgcache run to finish.
+    flock 9
+fi
+exec "$@"

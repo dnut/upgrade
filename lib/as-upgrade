@@ -1,0 +1,6 @@
+#!/usr/bin/bash
+# runs a command as the upgrade user, from the root workers. setpriv rather than runuser, because
+# runuser goes through pam, which can move the command out of the service's cgroup. the lock is
+# closed, so nothing the command leaves running in the background keeps holding it.
+exec 9>&-
+exec setpriv --reuid=upgrade --regid=upgrade --init-groups --reset-env /usr/bin/env PATH=/usr/bin "$@"

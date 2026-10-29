@@ -1,11 +1,6 @@
 #!/usr/bin/bash
+# the upgrade worker. runs as root, only from upgrade.service, so it never sees a user's session.
 set -euo pipefail
-# don't trust the caller's PATH, since this escalates through upgrade to root
-export PATH=/usr/local/sbin:/usr/local/bin:/usr/bin
-
-if [[ $(whoami) != upgrade ]]; then
-    exec sudo -u upgrade "${BASH_SOURCE[0]}"
-fi
 
 # defaults for options that are missing from /etc/upgrade.conf
 declare -A config=(
@@ -48,15 +43,16 @@ get_bool() { local name=$1
 read_config /etc/upgrade.conf
 
 echo Upgrading the system with pacman.
-sudo pacman -Syu --noconfirm
+pacman -Syu --noconfirm
 
+# AUR packages are built as the upgrade user, since makepkg refuses to run as root
 if get_bool upgrade_aur; then
     if command -v yay >/dev/null; then
         echo Upgrading AUR packages with yay.
-        yay --removemake -Syu --noconfirm
+        /usr/lib/upgrade/as-upgrade yay --removemake -Syu --noconfirm
     elif command -v paru >/dev/null; then
         echo Upgrading AUR packages with paru.
-        paru --removemake -Syu --noconfirm
+        /usr/lib/upgrade/as-upgrade paru --removemake -Syu --noconfirm
     else
         echo No AUR helper found, skipping AUR package upgrades.
     fi
@@ -64,20 +60,20 @@ fi
 
 if get_bool upgrade_flatpak && command -v flatpak >/dev/null; then
     echo Upgrading flatpak packages.
-    sudo flatpak update --noninteractive
+    flatpak update --noninteractive
 fi
 
 # a failed autoremove doesn't stop the cache from being cleaned, but still fails the run at the end
 autoremove_failed=false
 if get_bool autoremove; then
-    if ! autoremove --noconfirm; then
+    if ! /usr/lib/upgrade/autoremove --noconfirm; then
         echo Autoremove failed, continuing with the rest of the upgrade. >&2
         autoremove_failed=true
     fi
 fi
 
 if get_bool clean_cache_on_success; then
-    clearpkgcache
+    /usr/lib/upgrade/clearpkgcache
 fi
 
 if $autoremove_failed; then

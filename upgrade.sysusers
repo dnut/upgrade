@@ -1,0 +1,4 @@
+# builds AUR packages for upgrade.service. it is not a member of upgraders.
+u upgrade - "AUR builds for the upgrade package" /home/upgrade
+# members may start the upgrade, autoremove and clearpkgcache services, see upgrade.rules
+g upgraders -

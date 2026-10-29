@@ -1,0 +1,7 @@
+[Unit]
+Description=Clean the package caches.
+
+[Service]
+Type=oneshot
+Environment=PATH=/usr/bin
+ExecStart=/usr/lib/upgrade/locked /usr/lib/upgrade/clearpkgcache
