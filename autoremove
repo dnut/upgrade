@@ -4,9 +4,11 @@
 set -euo pipefail
 worker=/usr/lib/upgrade/autoremove
 
+# argparse also accepts any unambiguous prefix of an option, such as --dry, and only --dry-run and
+# --help start with --d and --h
 for arg in "$@"; do
     case $arg in
-        --dry-run | -h | --help) exec "$worker" "$@" ;;
+        --d* | -h | --h*) exec "$worker" "$@" ;;
     esac
 done
 if [[ $EUID == 0 ]]; then
