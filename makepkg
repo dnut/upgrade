@@ -1,8 +1,9 @@
 #!/usr/bin/bash
 
-# builds the package from this checkout, including uncommitted changes, instead of the github release
-# the PKGBUILD names, and puts it in dist/. takes makepkg's options, for example ./makepkg -si to also
-# install it. the build itself happens in a temporary folder that's removed afterwards.
+# builds the package from this checkout, including uncommitted changes, instead of the github
+# release the PKGBUILD names, and puts it in /dist/. takes makepkg's options, for example 
+# ./makepkg -si to also install it. the build itself happens in a temporary folder that's removed 
+# automatically at the end.
 
 set -euo pipefail
 
