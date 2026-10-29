@@ -7,19 +7,10 @@ if [[ $(whoami) != upgrade ]]; then
     exec sudo -u upgrade "${BASH_SOURCE[0]}"
 fi
 
-# only the known "Is a directory" error from pacman -Scc is ignored, any other error still fails.
-# LC_ALL=C keeps pacman's messages in english so they can be matched.
-cache_cleaned=true
-output=$(yes | LC_ALL=C sudo pacman -Scc 2>&1) || cache_cleaned=false
-echo "$output"
-if ! $cache_cleaned; then
-    if ! grep -q 'Is a directory' <<<"$output" \
-        || grep '^error:' <<<"$output" | grep -qv 'Is a directory'; then
-        exit 1
-    fi
-    echo '"Is a directory" error is a known issue with pacman -Scc that can be ignored.'
-    echo 'Some empty folders exist at /var/cache/pacman/pkg/download-*, which you can delete.'
-fi
+# keep the two most recent versions of each installed package, and the most recent version of each
+# uninstalled package, so a bad update can still be rolled back and a removed package reinstalled.
+sudo paccache -rk2
+sudo paccache -ruk1
 
 rm -rf /home/upgrade/.cache/paru/clone/
 

@@ -6,5 +6,5 @@
 # If you would like to grant upgrade permissions for a user, do not
 # change this file. Instead, add the user to the "upgraders" group.
 
-upgrade ALL=(ALL) NOPASSWD: /usr/bin/pacman, /usr/bin/flatpak
+upgrade ALL=(ALL) NOPASSWD: /usr/bin/pacman, /usr/bin/flatpak, /usr/bin/paccache -rk2, /usr/bin/paccache -ruk1
 %upgraders ALL=(upgrade) NOPASSWD: /usr/bin/upgrade, /usr/bin/clearpkgcache, /usr/bin/autoremove

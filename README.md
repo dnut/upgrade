@@ -23,7 +23,7 @@ To ensure that automated system upgrades do not interrupt normal system function
 All the following default to true. Each option in the file must be set to `true` or `false`. If the file can't be read, or has any other line apart from comments, `upgrade` stops with an error.
 - `upgrade_aur`: Set to false if you are not interested in automating AUR upgrades, and only want to install packages from pacman's configured repositories.
 - `upgrade_flatpak`: Set to false if you would like to prevent upgrades of system-wide flatpak packages.
-- `clean_cache_on_success`: Set to false if you would like to persist the package cache indefinitely.
+- `clean_cache_on_success`: Set to false if you would like to keep every package in the cache indefinitely. When enabled, `clearpkgcache` keeps the two most recent versions of each installed package and the most recent version of each uninstalled package, so you can still roll back a bad update or reinstall a removed package.
 - `autoremove`: Set to false if you would like to keep orphaned packages, which are dependencies that are no longer required or optionally required by any installed package. When enabled, `upgrade` runs `autoremove --noconfirm` after each upgrade, which keeps any of their configuration files that you modified as `.pacsave` files. See [Removing orphaned packages](#removing-orphaned-packages).
 
 ### /etc/group
