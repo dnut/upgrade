@@ -2,5 +2,6 @@
 # runs a command as the aur-upgrader user, from the root workers. setpriv rather than runuser,
 # because runuser goes through pam, which can move the command out of the service's cgroup.
 # anything the command leaves running in the background stays in that cgroup, so systemd kills
-# it with the service when the run ends.
-exec setpriv --reuid=aur-upgrader --regid=aur-upgrader --init-groups --reset-env /usr/bin/env PATH=/usr/bin "$@"
+# it with the service when the run ends. --reset-env also drops the locale, and some builds need
+# UTF-8, so LANG is set to the one glibc always has.
+exec setpriv --reuid=aur-upgrader --regid=aur-upgrader --init-groups --reset-env /usr/bin/env PATH=/usr/bin LANG=C.UTF-8 "$@"
