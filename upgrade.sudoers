@@ -7,4 +7,5 @@
 # change this file. Instead, add the user to the "upgraders" group.
 
 # upgrade.service runs yay or paru as the upgrade user, and they need this to install AUR packages
+# this lets AUR builds get root, see "AUR packages" in the README
 upgrade ALL=(root) NOPASSWD: /usr/bin/pacman
