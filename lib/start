@@ -5,8 +5,9 @@
 set -euo pipefail
 unit=$1
 
-# show the output from the start of the run: the one that's already going, or the one started below
-since=now
+# show the output from the start of the run: the one that's already going, or the one started below.
+# the time is taken here, rather than passing "now", which journalctl would only read once it starts.
+since=@$(date +%s)
 if [[ $(systemctl show -P ActiveState "$unit") == activating ]]; then
     echo "$unit is already running, following it."
     since=$(systemctl show --timestamp=unix -P InactiveExitTimestamp "$unit")
