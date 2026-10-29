@@ -11,47 +11,11 @@ jobs:
     container: archlinux:base-devel
     # the aur environment holds the AUR_SSH_KEY secret, and only lets version tags use it
     environment: aur
-    defaults:
-      run:
-        shell: bash
     steps:
       # pinned to a commit, since this job can push to the AUR
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
-      - name: Check that the tag matches the PKGBUILD
-        run: |
-          source PKGBUILD
-          # pkgrel 1 is tagged with the version, later ones with version-pkgrel
-          tag=$pkgver
-          if (( pkgrel > 1 )); then tag+=-$pkgrel; fi
-          if [[ $GITHUB_REF_NAME != "$tag" ]]; then
-            echo "::error::The tag is $GITHUB_REF_NAME, but the PKGBUILD is $pkgver-$pkgrel, which is tagged $tag."
-            exit 1
-          fi
-
-      - name: Push to the AUR
+      - name: Publish to the AUR
         env:
           AUR_SSH_KEY: ${{ secrets.AUR_SSH_KEY }}
-        run: |
-          pacman -Syu --noconfirm --needed git openssh
-
-          # makepkg refuses to run as root, so .SRCINFO is generated as nobody, in a folder it owns
-          package=$(mktemp -d)
-          cp PKGBUILD upgrade.install "$package"
-          chown -R nobody "$package"
-          (cd "$package" && runuser -u nobody -- makepkg --printsrcinfo >.SRCINFO)
-
-          # explicit paths, since ssh looks for ~/.ssh in root's home, which isn't $HOME in a container
-          ssh=$(mktemp -d)
-          (umask 077 && printf '%s\n' "$AUR_SSH_KEY" >"$ssh/key")
-          # check against the fingerprints on https://aur.archlinux.org before changing this
-          echo 'aur.archlinux.org ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIEuBKrPzbawxA/k2g6NcyV5jmqwJ2s+zpgZGZ7tpLIcN' >"$ssh/known_hosts"
-          export GIT_SSH_COMMAND="ssh -i $ssh/key -o IdentitiesOnly=yes -o UserKnownHostsFile=$ssh/known_hosts -o StrictHostKeyChecking=yes"
-
-          aur=$(mktemp -d)
-          git clone ssh://aur@aur.archlinux.org/upgrade.git "$aur"
-          cp "$package"/{PKGBUILD,upgrade.install,.SRCINFO} "$aur"
-          cd "$aur"
-          git add PKGBUILD upgrade.install .SRCINFO
-          git -c user.name='Drew Nutter' -c user.email=dnut@users.noreply.github.com commit -m "upgrade to $GITHUB_REF_NAME"
-          git push
+        run: bash .github/workflows/aur.sh "$GITHUB_REF_NAME"
