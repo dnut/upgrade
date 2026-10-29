@@ -67,10 +67,19 @@ if get_bool upgrade_flatpak && command -v flatpak >/dev/null; then
     sudo flatpak update --noninteractive
 fi
 
+# a failed autoremove doesn't stop the cache from being cleaned, but still fails the run at the end
+autoremove_failed=false
 if get_bool autoremove; then
-    autoremove --noconfirm
+    if ! autoremove --noconfirm; then
+        echo Autoremove failed, continuing with the rest of the upgrade. >&2
+        autoremove_failed=true
+    fi
 fi
 
 if get_bool clean_cache_on_success; then
     clearpkgcache
+fi
+
+if $autoremove_failed; then
+    exit 1
 fi
