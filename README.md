@@ -10,6 +10,22 @@ If you choose to enable AUR upgrades, `upgrade` will use either yay or paru unde
 
 You should always keep your system up to date! But the automation can be disabled if desired. Automation is handled by a systemd timer (upgrade.timer) that is enabled by default upon install. If there are conflicts or other problems with the upgrade, you will need to manually resolve them. So it's a good idea to occasionally check `journalctl -u upgrade` for any errors.
 
+## Running it yourself
+
+The `upgrade`, `autoremove` and `clearpkgcache` commands start a systemd service (`upgrade.service`, `upgrade-autoremove.service` or `upgrade-clearpkgcache.service`) and show its output until it finishes. The work always runs inside the service, as root, and never in your own session. Only one of the three runs at a time, and running `upgrade` while the timer's upgrade is going follows that run instead of starting another.
+
+To see the output, you need to be able to read the system journal, which root and the `wheel`, `adm` and `systemd-journal` groups can. Anyone else only sees whether the run succeeded. Pressing Ctrl-C stops showing the output, but the run carries on.
+
+To stop a run that's in progress, stop the timer and mask the service first, so that nothing starts it again, then stop it:
+
+```
+systemctl stop upgrade.timer
+systemctl mask --runtime upgrade.service
+systemctl stop upgrade.service
+```
+
+Stopping it while pacman is changing packages can leave your system half upgraded. `systemctl unmask --runtime upgrade.service` and `systemctl start upgrade.timer` undo the first two steps.
+
 To ensure that automated system upgrades do not interrupt normal system functioning, kernel-modules-hook is also a dependency.
 
 ## Installation
@@ -28,11 +44,15 @@ All the following default to true. Each option in the file must be set to `true`
 
 ### /etc/group
 
-Anyone in the `upgraders` group has permission to execute `upgrade`, `clearpkgcache` or `autoremove` without typing a password. This requires /etc/sudoers to `@includedir /etc/sudoers.d`, which is already included by default in the arch linux installation of sudo.
+Anyone in the `upgraders` group can run `upgrade`, `clearpkgcache` or `autoremove` without typing a password. A polkit rule lets them start the three services, but not stop, restart or kill them, and it doesn't give them any other privileges. Members of `wheel` can already start the services after typing their own password. The `upgrade` user, which builds AUR packages, should not be in `upgraders`.
+
+The `upgrade` user is allowed to run pacman through sudo, so that yay or paru can install AUR packages. This requires /etc/sudoers to `@includedir /etc/sudoers.d`, which is already included by default in the arch linux installation of sudo.
 
 ## Removing orphaned packages
 
-`autoremove` removes packages that were installed as dependencies and are no longer needed. `upgrade` runs `autoremove --noconfirm` after each upgrade when `autoremove` is enabled in /etc/upgrade.conf, and you can also run it yourself. By default it keeps packages that other packages optionally depend on, keeps any config files you modified as `.pacsave` files, and has pacman show the full list of packages and ask before removing anything.
+`autoremove` removes packages that were installed as dependencies and are no longer needed. `upgrade` runs `autoremove --noconfirm` after each upgrade when `autoremove` is enabled in /etc/upgrade.conf, and you can also run it yourself. By default it keeps packages that other packages optionally depend on, and keeps any config files you modified as `.pacsave` files.
+
+When root runs `autoremove`, it runs directly in root's shell, has pacman show the full list of packages and ask before removing anything, and accepts any of the options below. Anyone can use `--dry-run`. Other users, such as members of `upgraders`, can only run it without options, which starts `upgrade-autoremove.service` and removes the packages with the defaults and without asking.
 - `--optdeps`: Also remove packages that other packages only optionally depend on.
 - `--config`: Also delete config files that you modified, instead of keeping them as `.pacsave` files.
 - `--noconfirm`: Remove the packages without asking.
