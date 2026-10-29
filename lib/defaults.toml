@@ -1,0 +1,17 @@
+# the default for each option. don't change this file, it's replaced on upgrade. to change an option,
+# set it in /etc/upgrade.toml instead, which overrides this.
+
+# upgrade packages installed from the AUR using an AUR helper. see "AUR packages" in the README first.
+upgrade_aur = false
+
+# upgrade packages installed by flatpak
+upgrade_flatpak = true
+
+# after running the upgrade, remove old packages from pacman's cache, keeping the
+# two most recent versions of each package, and delete paru's build files
+clean_cache_on_success = true
+
+# remove unneeded dependencies after running the upgrade.
+# this is deliberately conservative and does not touch
+# packages that are still optional dependencies.
+autoremove = true

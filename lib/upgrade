@@ -2,16 +2,15 @@
 # the upgrade worker. runs as root, only from upgrade.service, so it never sees a user's session.
 set -euo pipefail
 
-# /etc/upgrade.toml is optional, and only needs the options that differ from these defaults.
+# /etc/upgrade.toml is optional, and only needs the options that differ from defaults.toml.
 # any value but true turns an option off. old upgrade.conf files, moved to upgrade.toml, may quote it.
 config=/etc/upgrade.toml
 [[ -e $config ]] || config=/dev/null
 enabled=$(python -I -c '
 import sys, tomllib
-options = {"upgrade_aur": False, "upgrade_flatpak": True, "clean_cache_on_success": True, "autoremove": True}
-options |= tomllib.load(sys.stdin.buffer)
+options = tomllib.load(open(sys.argv[1], "rb")) | tomllib.load(open(sys.argv[2], "rb"))
 [print(name) for name, value in options.items() if value in (True, "true")]
-' <"$config")
+' /usr/lib/upgrade/defaults.toml "$config")
 is_enabled() { grep -qxF "$1" <<<"$enabled"; }
 
 echo Upgrading the system with pacman.
