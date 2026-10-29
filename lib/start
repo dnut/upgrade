@@ -5,64 +5,18 @@
 set -euo pipefail
 unit=$1
 
-# on arch, root and these groups can read the system journal
-can_read_journal() {
-    [[ $EUID == 0 ]] || id -nG | tr ' ' '\n' | grep -qxE 'wheel|adm|systemd-journal'
-}
-
-state=$(systemctl show -P ActiveState "$unit")
-previous=$(systemctl show -P InvocationID "$unit")
-
-# systemctl start waits for the run to finish and returns its result, joining a run that's already
-# going. ctrl-c only stops following the run, it carries on in the service.
-systemctl start "$unit" &
-starter=$!
-follower=
-cursor=$(mktemp)
-trap 'rm -f "$cursor"' EXIT
-trap 'kill $starter $follower 2>/dev/null; echo; echo "Stopped following $unit, but it keeps running."; exit 130' INT
-
-invocation=$previous
-if [[ $state == activating ]]; then
+# show the output from the start of the run: the one that's already going, or the one started below
+since=now
+if [[ $(systemctl show -P ActiveState "$unit") == activating ]]; then
     echo "$unit is already running, following it."
-else
-    while [[ $invocation == "$previous" ]] && kill -0 $starter 2>/dev/null; do
-        sleep 0.1
-        invocation=$(systemctl show -P InvocationID "$unit")
-    done
+    since=$(systemctl show --timestamp=unix -P InactiveExitTimestamp "$unit")
 fi
-# no new invocation means the start was refused, and systemctl says why
-started=false
-[[ $invocation != "$previous" || $state == activating ]] && started=true
+journalctl -f --no-tail -o cat -u "$unit" --since "$since" &
+follower=$!
+# the last lines can reach the journal just after the run ends, so give them a moment before stopping
+trap 'sleep 1; kill $follower 2>/dev/null || true' EXIT
+trap 'echo; echo "Stopped following $unit, but it keeps running."; exit 130' INT
 
-if $started && can_read_journal; then
-    journalctl -f -q -o cat --cursor-file="$cursor" "_SYSTEMD_INVOCATION_ID=$invocation" &
-    follower=$!
-elif $started; then
-    echo "Started $unit. You can't read the system journal, so its output isn't shown here."
-fi
-
-status=0
-wait $starter || status=$?
-# if the wait broke while the run carries on, for example when an upgrade of systemd re-executes it,
-# keep waiting for the run to finish
-if (( status != 0 )) && $started && [[ $(systemctl show -P ActiveState "$unit") == activating ]]; then
-    while [[ $(systemctl show -P ActiveState "$unit") == activating ]]; do
-        sleep 2
-    done
-    status=0
-    [[ $(systemctl show -P Result "$unit") == success ]] || status=1
-fi
-
-if [[ -n $follower ]]; then
-    # give the journal a moment to receive the last lines, then print any the follower missed
-    sleep 0.5
-    kill $follower
-    wait $follower || true
-    journalctl -q -o cat --cursor-file="$cursor" "_SYSTEMD_INVOCATION_ID=$invocation"
-fi
-
-if (( status != 0 )) && $started; then
-    echo "$unit failed. Its full log: journalctl -u $unit (needs root, wheel, adm or systemd-journal)" >&2
-fi
-exit $status
+# waits for the run to finish, joining one that's already going, and exits with its result.
+# ctrl-c only stops this wait, the run carries on in the service.
+systemctl start "$unit"
