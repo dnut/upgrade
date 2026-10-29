@@ -5,4 +5,4 @@ Description=Remove orphaned packages.
 Type=oneshot
 Environment=PATH=/usr/bin
 # shutdown is blocked while packages are changing, but not while waiting for the lock
-ExecStart=/usr/lib/upgrade/locked /usr/bin/systemd-inhibit --what=shutdown --mode=block --who=upgrade "--why=Removing orphaned packages" /usr/lib/upgrade/autoremove --noconfirm
+ExecStart=/usr/lib/upgrade/locked /usr/bin/systemd-inhibit --what=shutdown --mode=block "--why=Removing orphaned packages" /usr/lib/upgrade/autoremove --noconfirm
