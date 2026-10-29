@@ -1,0 +1,97 @@
+#!/usr/bin/python
+"""Remove packages that were installed as dependencies and are no longer needed.
+
+By default this is a conservative autoremove that leaves behind:
+- any packages that are still functioning as an optional dependency, unless --optdeps
+- any config files for the package that were modified by the user, unless --config
+"""
+
+import os
+
+# don't trust the caller's PATH, since this escalates through upgrade to root
+os.environ["PATH"] = "/usr/local/sbin:/usr/local/bin:/usr/bin"
+
+import argparse
+import pwd
+import sys
+
+import pyalpm
+import pycman.config
+
+
+def main():
+    parser = argparse.ArgumentParser(
+        description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter
+    )
+    parser.add_argument(
+        "--noconfirm",
+        action="store_true",
+        help="remove the packages without asking for confirmation",
+    )
+    parser.add_argument(
+        "--config",
+        action="store_true",
+        help="also delete config files that were modified, instead of keeping them as .pacsave",
+    )
+    parser.add_argument(
+        "--optdeps",
+        action="store_true",
+        help="also remove packages that other packages only optionally depend on",
+    )
+    parser.add_argument(
+        "--dry-run",
+        action="store_true",
+        help="only query and print the commands",
+    )
+    args = parser.parse_args()
+
+    if os.geteuid() != pwd.getpwnam("upgrade").pw_uid:
+        rerun_as_upgrade = ["sudo", "-u", "upgrade", os.path.abspath(__file__), *sys.argv[1:]]
+        execvp(args.dry_run, "sudo", rerun_as_upgrade)
+
+    handle = pycman.config.init_with_config("/etc/pacman.conf")
+    unneeded = unneeded_packages(handle.get_localdb().pkgcache, not args.optdeps)
+    if not unneeded:
+        return
+
+    flags = []
+    if args.noconfirm:
+        flags.append("--noconfirm")
+    if args.config:
+        flags.append("-n")  # -n deletes modified config files instead of keeping them as .pacsave
+    print("Removing orphaned packages.", flush=True)
+    execvp(args.dry_run, "sudo", ["sudo", "pacman", "-R", *flags, *unneeded])
+
+
+def execvp(dry_run, cmd, args):
+    if dry_run:
+        print(">", *args)
+    else:
+        os.execvp(cmd, args)
+
+
+def unneeded_packages(packages, opts_are_needed):
+    """Find every package installed as a dependency that no remaining package needs."""
+    needed_by = {}
+    for pkg in packages:
+        if pkg.reason == pyalpm.PKG_REASON_DEPEND:
+            needed_by[pkg.name] = pkg.compute_requiredby()
+            if opts_are_needed:
+                needed_by[pkg.name] += pkg.compute_optionalfor()
+
+    # start from every package installed as a dependency, then keep any package that a kept package
+    # still needs, until nothing changes. this finds the full list up front so pacman prompts once,
+    # and also catches dependency cycles that nothing needs, which looping over pacman -Qdt misses.
+    # also this is smarter than pacman -Rs, which ignores optional dependencies.
+    removable = set(needed_by)
+    while kept := {
+        name
+        for name in removable
+        if any(dependent not in removable for dependent in needed_by[name])
+    }:
+        removable -= kept
+    return sorted(removable)
+
+
+if __name__ == "__main__":
+    main()

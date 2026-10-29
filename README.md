@@ -24,10 +24,19 @@ All the following default to true.
 - `upgrade_aur`: Set to false if you are not interested in automating AUR upgrades, and only want to install packages from pacman's configured repositories.
 - `upgrade_flatpak`: Set to false if you would like to prevent upgrades of system-wide flatpak packages.
 - `clean_cache_on_success`: Set to false if you would like to persist the package cache indefinitely.
+- `autoremove`: Set to false if you would like to keep orphaned packages, which are dependencies that are no longer required or optionally required by any installed package. When enabled, `upgrade` runs `autoremove --noconfirm` after each upgrade, which keeps any of their configuration files that you modified as `.pacsave` files. See [Removing orphaned packages](#removing-orphaned-packages).
 
 ### /etc/group
 
-Anyone in the `upgraders` group has permission to execute `upgrade` or `clearpkgcache` without typing a password. This requires /etc/sudoers to `@includedir /etc/sudoers.d`, which is already included by default in the arch linux installation of sudo.
+Anyone in the `upgraders` group has permission to execute `upgrade`, `clearpkgcache` or `autoremove` without typing a password. This requires /etc/sudoers to `@includedir /etc/sudoers.d`, which is already included by default in the arch linux installation of sudo.
+
+## Removing orphaned packages
+
+`autoremove` removes packages that were installed as dependencies and are no longer needed. `upgrade` runs `autoremove --noconfirm` after each upgrade when `autoremove` is enabled in /etc/upgrade.conf, and you can also run it yourself. By default it keeps packages that other packages optionally depend on, keeps any config files you modified as `.pacsave` files, and has pacman show the full list of packages and ask before removing anything.
+- `--optdeps`: Also remove packages that other packages only optionally depend on.
+- `--config`: Also delete config files that you modified, instead of keeping them as `.pacsave` files.
+- `--noconfirm`: Remove the packages without asking.
+- `--dry-run`: Only print the commands that would be run.
 
 ## Risks
 

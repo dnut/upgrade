@@ -20,7 +20,9 @@ parse_config() { local path=$1; local desired_setting=$2;
 }
 
 get_bool() { local name=$1
-    [[ $(parse_config /etc/upgrade.conf $name) == true ]]
+    local value=$(parse_config /etc/upgrade.conf $name)
+    # options missing from the config default to true
+    [[ ${value:-true} == true ]]
 }
 
 echo Upgrading the system with pacman.
@@ -41,6 +43,10 @@ fi
 if get_bool upgrade_flatpak && command -v flatpak >/dev/null; then
     echo Upgrading flatpak packages.
     sudo flatpak update --noninteractive
+fi
+
+if get_bool autoremove; then
+    autoremove --noconfirm
 fi
 
 if get_bool clean_cache_on_success; then
