@@ -2,51 +2,23 @@
 # the upgrade worker. runs as root, only from upgrade.service, so it never sees a user's session.
 set -euo pipefail
 
-# defaults for options that are missing from /etc/upgrade.conf
-declare -A config=(
-    [upgrade_aur]=true
-    [upgrade_flatpak]=true
-    [clean_cache_on_success]=true
-    [autoremove]=true
-)
-
-# fail instead of guessing if the config can't be read, or has a line that isn't a comment,
-# name=true or name=false, so a typo can't silently turn an option on.
-read_config() { local path=$1 line name value number=0
-    local comment='^[[:space:]]*(#.*)?$'
-    local option='^[[:space:]]*([a-z_]+)[[:space:]]*=[[:space:]]*(true|false|"true"|"false")[[:space:]]*$'
-    if [[ ! -r $path ]]; then
-        echo "Cannot read $path." >&2
-        exit 1
-    fi
-    while IFS= read -r line || [[ -n $line ]]; do
-        number=$((number + 1))
-        [[ $line =~ $comment ]] && continue
-        if [[ ! $line =~ $option ]]; then
-            echo "$path:$number: expected name=true or name=false, got: $line" >&2
-            exit 1
-        fi
-        name=${BASH_REMATCH[1]}
-        value=${BASH_REMATCH[2]//\"/}
-        if [[ -z ${config[$name]+set} ]]; then
-            echo "$path:$number: unknown option: $name" >&2
-            exit 1
-        fi
-        config[$name]=$value
-    done < "$path"
-}
-
-get_bool() { local name=$1
-    [[ ${config[$name]} == true ]]
-}
-
-read_config /etc/upgrade.conf
+# /etc/upgrade.toml is optional, and only needs the options that differ from these defaults.
+# any value but true turns an option off. old upgrade.conf files, moved to upgrade.toml, may quote it.
+config=/etc/upgrade.toml
+[[ -e $config ]] || config=/dev/null
+enabled=$(python -I -c '
+import sys, tomllib
+options = {"upgrade_aur": True, "upgrade_flatpak": True, "clean_cache_on_success": True, "autoremove": True}
+options |= tomllib.load(sys.stdin.buffer)
+[print(name) for name, value in options.items() if value in (True, "true")]
+' <"$config")
+is_enabled() { grep -qxF "$1" <<<"$enabled"; }
 
 echo Upgrading the system with pacman.
 pacman -Syu --noconfirm
 
 # AUR packages are built as the aur-upgrader user, since makepkg refuses to run as root
-if get_bool upgrade_aur; then
+if is_enabled upgrade_aur; then
     if command -v yay >/dev/null; then
         echo Upgrading AUR packages with yay.
         /usr/lib/upgrade/as-aur-upgrader yay --removemake -Syu --noconfirm
@@ -58,21 +30,21 @@ if get_bool upgrade_aur; then
     fi
 fi
 
-if get_bool upgrade_flatpak && command -v flatpak >/dev/null; then
+if is_enabled upgrade_flatpak && command -v flatpak >/dev/null; then
     echo Upgrading flatpak packages.
     flatpak update --noninteractive
 fi
 
 # a failed autoremove doesn't stop the cache from being cleaned, but still fails the run at the end
 autoremove_failed=false
-if get_bool autoremove; then
+if is_enabled autoremove; then
     if ! /usr/lib/upgrade/autoremove --noconfirm; then
         echo Autoremove failed, continuing with the rest of the upgrade. >&2
         autoremove_failed=true
     fi
 fi
 
-if get_bool clean_cache_on_success; then
+if is_enabled clean_cache_on_success; then
     /usr/lib/upgrade/clearpkgcache
 fi
 

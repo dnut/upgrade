@@ -4,7 +4,8 @@
 - Members of `upgraders` are allowed to start the services by a polkit rule, instead of sudo. Apart from `--dry-run`, only root can pass options to `autoremove`.
 - Add `autoremove`, which removes orphaned packages after each upgrade.
 - Keep the two most recent versions of each package in the cache, using paccache, instead of deleting the whole cache.
-- Stop with an error if /etc/upgrade.conf can't be read or has an invalid line, instead of guessing.
+- Read the settings from /etc/upgrade.toml instead of /etc/upgrade.conf, and don't install a default one, because it's only needed to change a default. When upgrading, a changed upgrade.conf is moved to upgrade.toml. The format is the same.
+- Stop with an error if /etc/upgrade.toml isn't valid TOML, instead of guessing.
 - Fix AUR upgrades, which were skipped because of an unsupported `command -q` option.
 - Depends on polkit, python, pyalpm and pacman-contrib.
 - Build AUR packages as a new `aur-upgrader` user, with its home in /var/lib/aur-upgrader, instead of the `upgrade` user. It starts with empty caches, so if you configured yay or paru for `upgrade`, copy that configuration over. Once a run with this version has finished, delete the old user with `userdel -r upgrade`.

@@ -34,9 +34,9 @@ To ensure that automated system upgrades do not interrupt normal system function
 
 ## Configuration
 
-### /etc/upgrade.conf
+### /etc/upgrade.toml
 
-All the following default to true. Each option in the file must be set to `true` or `false`. If the file can't be read, or has any other line apart from comments, `upgrade` stops with an error.
+`upgrade` doesn't need this file. Create it only to change an option below, for example `upgrade_flatpak = false`. Any value other than `true` turns an option off, and `upgrade` stops with an error if the file isn't valid TOML. All the following default to true.
 - `upgrade_aur`: Set to false if you are not interested in automating AUR upgrades, and only want to install packages from pacman's configured repositories.
 - `upgrade_flatpak`: Set to false if you would like to prevent upgrades of system-wide flatpak packages.
 - `clean_cache_on_success`: Set to false if you would like to keep every package in the cache indefinitely. When enabled, `clearpkgcache` keeps the two most recent versions of each installed package and the most recent version of each uninstalled package, so you can still roll back a bad update or reinstall a removed package.
@@ -50,7 +50,7 @@ The `aur-upgrader` user is allowed to run pacman through sudo, so that yay or pa
 
 ## Removing orphaned packages
 
-`autoremove` removes packages that were installed as dependencies and are no longer needed. `upgrade` runs `autoremove --noconfirm` after each upgrade when `autoremove` is enabled in /etc/upgrade.conf, and you can also run it yourself. By default it keeps packages that other packages optionally depend on, and keeps any config files you modified as `.pacsave` files.
+`autoremove` removes packages that were installed as dependencies and are no longer needed. `upgrade` runs `autoremove --noconfirm` after each upgrade when `autoremove` is enabled in /etc/upgrade.toml, and you can also run it yourself. By default it keeps packages that other packages optionally depend on, and keeps any config files you modified as `.pacsave` files.
 
 When root runs `autoremove`, it runs directly in root's shell, has pacman show the full list of packages and ask before removing anything, and accepts any of the options below. Anyone can use `--dry-run`. Other users, such as members of `upgraders`, can only run it without options, which starts `autoremove.service` and removes the packages with the defaults and without asking.
 - `--optdeps`: Also remove packages that other packages only optionally depend on.
@@ -74,4 +74,4 @@ When `upgrade_aur` is enabled, which is the default, `upgrade` builds and instal
 
 The builds run as the `aur-upgrader` user, which can run pacman as root through sudo, because yay and paru need that to install packages and their build dependencies. So code that runs during a build can also get root. Building as a user without sudo wouldn't remove the risk, because the package a build produces is installed as root anyway. Only root and the upgrade services run anything as `aur-upgrader`, so no other user can use its sudo access. Keep it that way: anyone who can run commands as `aur-upgrader`, for example through a sudo rule, can get root.
 
-If you want to read AUR changes before they're installed, set `upgrade_aur=false` in /etc/upgrade.conf, and upgrade AUR packages yourself with yay or paru, which can show you the changes first.
+If you want to read AUR changes before they're installed, set `upgrade_aur=false` in /etc/upgrade.toml, and upgrade AUR packages yourself with yay or paru, which can show you the changes first.
