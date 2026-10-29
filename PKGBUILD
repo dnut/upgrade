@@ -6,7 +6,7 @@ pkgdesc='Automate system upgrades'
 arch=('any')
 url='https://github.com/dnut/upgrade'
 license=('GPL3')
-depends=('kernel-modules-hook' 'polkit' 'python' 'pyalpm' 'pacman-contrib')
+depends=('kernel-modules-hook' 'polkit' 'python' 'pyalpm' 'pacman-contrib' 'git')
 optdepends=('yay: upgrade AUR packages'
             'paru: upgrade AUR packages'
             'flatpak: upgrade flatpak packages')
@@ -19,7 +19,7 @@ package() {
     cd "$srcdir/$pkgname-$pkgver"
 
     install -Dm755 -t "$pkgdir/usr/bin" upgrade autoremove clearpkgcache
-    install -Dm755 -t "$pkgdir/usr/lib/upgrade" lib/{as-aur-upgrader,autoremove,clearpkgcache,locked,start,upgrade}
+    install -Dm755 -t "$pkgdir/usr/lib/upgrade" lib/{as-aur-upgrader,autoremove,clearpkgcache,locked,self-upgrade,start,upgrade}
     install -Dm644 -t "$pkgdir/usr/lib/upgrade" lib/defaults.toml
 
     install -Dm644 -t "$pkgdir/usr/lib/systemd/system" upgrade.service upgrade.timer autoremove.service clearpkgcache.service

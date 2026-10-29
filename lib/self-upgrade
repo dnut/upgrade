@@ -1,0 +1,22 @@
+#!/usr/bin/bash
+# upgrades the upgrade package itself from the AUR, when the AUR has a newer version. the upgrade
+# worker runs this every time, even with upgrade_aur off, so fixes to upgrade always arrive. the
+# package is built as aur-upgrader, since makepkg refuses to run as root, and installed by root.
+set -euo pipefail
+build=/var/lib/aur-upgrader/.cache/upgrade
+
+/usr/lib/upgrade/as-aur-upgrader rm -rf "$build"
+/usr/lib/upgrade/as-aur-upgrader git clone -q --depth 1 https://aur.archlinux.org/upgrade.git "$build"
+srcinfo() { sed -n "s/^\t$1 = //p" "$build/.SRCINFO"; }
+aur=$(srcinfo pkgver)-$(srcinfo pkgrel)
+installed=$(pacman -Q upgrade | cut -d' ' -f2)
+# never older, so a newer local build isn't replaced
+if (( $(vercmp "$aur" "$installed") <= 0 )); then
+    exit
+fi
+
+echo "Upgrading upgrade from $installed to $aur, from the AUR."
+cd "$build"
+# makepkg.conf may point these at folders that aur-upgrader can't write to
+/usr/lib/upgrade/as-aur-upgrader BUILDDIR="$build" SRCDEST="$build" PKGDEST="$build" makepkg --nodeps --noconfirm
+pacman -U --noconfirm "$build/upgrade-$aur"-*.pkg.tar.*

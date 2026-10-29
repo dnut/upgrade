@@ -16,6 +16,15 @@ is_enabled() { grep -qxF "$1" <<<"$enabled"; }
 echo Upgrading the system with pacman.
 pacman -Syu --noconfirm
 
+# a failed step below doesn't stop the ones after it, but still fails the run at the end
+failed=false
+
+# upgrade updates itself from the AUR even with upgrade_aur off, so its own fixes always arrive
+if ! /usr/lib/upgrade/self-upgrade; then
+    echo Upgrading upgrade from the AUR failed, continuing with the rest of the upgrade. >&2
+    failed=true
+fi
+
 # AUR packages are built as the aur-upgrader user, since makepkg refuses to run as root
 if is_enabled upgrade_aur; then
     if command -v yay >/dev/null; then
@@ -34,12 +43,10 @@ if is_enabled upgrade_flatpak && command -v flatpak >/dev/null; then
     flatpak update --noninteractive
 fi
 
-# a failed autoremove doesn't stop the cache from being cleaned, but still fails the run at the end
-autoremove_failed=false
 if is_enabled autoremove; then
     if ! /usr/lib/upgrade/autoremove --noconfirm; then
         echo Autoremove failed, continuing with the rest of the upgrade. >&2
-        autoremove_failed=true
+        failed=true
     fi
 fi
 
@@ -47,6 +54,6 @@ if is_enabled clean_cache_on_success; then
     /usr/lib/upgrade/clearpkgcache
 fi
 
-if $autoremove_failed; then
+if $failed; then
     exit 1
 fi

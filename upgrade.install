@@ -10,6 +10,7 @@ post_upgrade() {
             mv /etc/upgrade.conf.pacsave /etc/upgrade.toml
             echo "Moved your settings from /etc/upgrade.conf to /etc/upgrade.toml."
         fi
-        echo "AUR packages are now only upgraded if /etc/upgrade.toml sets upgrade_aur = true."
+        echo "Other AUR packages are now only upgraded if /etc/upgrade.toml sets upgrade_aur = true."
+        echo "upgrade still updates itself from the AUR."
     fi
 }
