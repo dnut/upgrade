@@ -36,11 +36,11 @@ To ensure that automated system upgrades do not interrupt normal system function
 
 ### /etc/upgrade.toml
 
-`upgrade` doesn't need this file. Create it only to change an option below, for example `upgrade_flatpak = false`. Any value other than `true` turns an option off, and `upgrade` stops with an error if the file isn't valid TOML. All the following default to true.
-- `upgrade_aur`: Set to false if you are not interested in automating AUR upgrades, and only want to install packages from pacman's configured repositories.
-- `upgrade_flatpak`: Set to false if you would like to prevent upgrades of system-wide flatpak packages.
-- `clean_cache_on_success`: Set to false if you would like to keep every package in the cache indefinitely. When enabled, `clearpkgcache` keeps the two most recent versions of each installed package and the most recent version of each uninstalled package, so you can still roll back a bad update or reinstall a removed package.
-- `autoremove`: Set to false if you would like to keep orphaned packages, which are dependencies that are no longer required or optionally required by any installed package. When enabled, `upgrade` runs `autoremove --noconfirm` after each upgrade, which keeps any of their configuration files that you modified as `.pacsave` files. See [Removing orphaned packages](#removing-orphaned-packages).
+`upgrade` doesn't need this file. Create it only to change an option below, for example `upgrade_flatpak = false`. Any value other than `true` turns an option off, and `upgrade` stops with an error if the file isn't valid TOML.
+- `upgrade_aur`: Defaults to false. Set to true to also upgrade AUR packages with yay or paru. Read [AUR packages](#aur-packages) first.
+- `upgrade_flatpak`: Defaults to true. Set to false if you would like to prevent upgrades of system-wide flatpak packages.
+- `clean_cache_on_success`: Defaults to true. Set to false if you would like to keep every package in the cache indefinitely. When enabled, `clearpkgcache` keeps the two most recent versions of each installed package and the most recent version of each uninstalled package, so you can still roll back a bad update or reinstall a removed package.
+- `autoremove`: Defaults to true. Set to false if you would like to keep orphaned packages, which are dependencies that are no longer required or optionally required by any installed package. When enabled, `upgrade` runs `autoremove --noconfirm` after each upgrade, which keeps any of their configuration files that you modified as `.pacsave` files. See [Removing orphaned packages](#removing-orphaned-packages).
 
 ### /etc/group
 
@@ -70,8 +70,8 @@ I have been using this tool for a few years on several servers and personal comp
 
 ### AUR packages
 
-When `upgrade_aur` is enabled, which is the default, `upgrade` builds and installs new versions of your AUR packages every hour without showing them to you first. Nobody reviews AUR packages before they're published, and malicious changes have reached the AUR before, including in packages that someone took over from their previous maintainer. Once a package is installed, its files and install scripts run as root. So you're trusting the maintainer of every AUR package you have installed, and anyone who gets into their account, with root access to your system.
+When you enable `upgrade_aur`, `upgrade` builds and installs new versions of your AUR packages every hour without showing them to you first. Nobody reviews AUR packages before they're published, and malicious changes have reached the AUR before, including in packages that someone took over from their previous maintainer. Once a package is installed, its files and install scripts run as root. So you're trusting the maintainer of every AUR package you have installed, and anyone who gets into their account, with root access to your system.
 
 The builds run as the `aur-upgrader` user, which can run pacman as root through sudo, because yay and paru need that to install packages and their build dependencies. So code that runs during a build can also get root. Building as a user without sudo wouldn't remove the risk, because the package a build produces is installed as root anyway. Only root and the upgrade services run anything as `aur-upgrader`, so no other user can use its sudo access. Keep it that way: anyone who can run commands as `aur-upgrader`, for example through a sudo rule, can get root.
 
-If you want to read AUR changes before they're installed, set `upgrade_aur=false` in /etc/upgrade.toml, and upgrade AUR packages yourself with yay or paru, which can show you the changes first.
+If you'd rather read AUR changes before they're installed, leave `upgrade_aur` off and upgrade AUR packages yourself with yay or paru, which can show you the changes first.

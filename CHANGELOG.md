@@ -6,6 +6,7 @@
 - Keep the two most recent versions of each package in the cache, using paccache, instead of deleting the whole cache.
 - Read the settings from /etc/upgrade.toml instead of /etc/upgrade.conf, and don't install a default one, because it's only needed to change a default. When upgrading, a changed upgrade.conf is moved to upgrade.toml. The format is the same.
 - Stop with an error if /etc/upgrade.toml isn't valid TOML, instead of guessing.
+- AUR packages are no longer upgraded by default. To keep upgrading them, put `upgrade_aur = true` in /etc/upgrade.toml. A changed upgrade.conf that was moved there usually already has it, from the old default file.
 - Fix AUR upgrades, which were skipped because of an unsupported `command -q` option.
 - Depends on polkit, python, pyalpm and pacman-contrib.
 - Build AUR packages as a new `aur-upgrader` user, with its home in /var/lib/aur-upgrader, instead of the `upgrade` user. It starts with empty caches, so if you configured yay or paru for `upgrade`, copy that configuration over. Once a run with this version has finished, delete the old user with `userdel -r upgrade`.

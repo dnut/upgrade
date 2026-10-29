@@ -8,7 +8,7 @@ config=/etc/upgrade.toml
 [[ -e $config ]] || config=/dev/null
 enabled=$(python -I -c '
 import sys, tomllib
-options = {"upgrade_aur": True, "upgrade_flatpak": True, "clean_cache_on_success": True, "autoremove": True}
+options = {"upgrade_aur": False, "upgrade_flatpak": True, "clean_cache_on_success": True, "autoremove": True}
 options |= tomllib.load(sys.stdin.buffer)
 [print(name) for name, value in options.items() if value in (True, "true")]
 ' <"$config")
