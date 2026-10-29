@@ -1,0 +1,10 @@
+#!/usr/bin/bash
+# cleans the package caches. the cleaning runs in upgrade-clearpkgcache.service, which this starts
+# and follows.
+set -euo pipefail
+
+if (( $# > 0 )); then
+    echo 'usage: clearpkgcache' >&2
+    exit 1
+fi
+exec /usr/lib/upgrade/start upgrade-clearpkgcache.service

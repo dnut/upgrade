@@ -1,0 +1,11 @@
+// lets members of the upgraders group start the upgrade, autoremove and clearpkgcache services.
+// only start: stopping, restarting or killing a run could interrupt pacman mid-transaction.
+polkit.addRule(function (action, subject) {
+    var units = ["upgrade.service", "upgrade-autoremove.service", "upgrade-clearpkgcache.service"];
+    if (action.id === "org.freedesktop.systemd1.manage-units" && subject.isInGroup("upgraders")) {
+        var unit = action.lookup("unit");
+        if (typeof unit === "string" && units.indexOf(unit) !== -1 && action.lookup("verb") === "start") {
+            return polkit.Result.YES;
+        }
+    }
+});

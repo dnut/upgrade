@@ -1,0 +1,18 @@
+#!/usr/bin/bash
+# removes orphaned packages. anyone can --dry-run and root can pass any option, since both run the
+# worker directly. everyone else starts upgrade-autoremove.service, which uses the default options.
+set -euo pipefail
+worker=/usr/lib/upgrade/autoremove
+
+for arg in "$@"; do
+    case $arg in
+        --dry-run | -h | --help) exec "$worker" "$@" ;;
+    esac
+done
+if [[ $EUID == 0 ]]; then
+    exec /usr/lib/upgrade/locked "$worker" "$@"
+elif (( $# > 0 )); then
+    echo 'Only root can pass options to autoremove, apart from --dry-run.' >&2
+    exit 1
+fi
+exec /usr/lib/upgrade/start upgrade-autoremove.service

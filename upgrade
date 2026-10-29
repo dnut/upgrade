@@ -1,0 +1,9 @@
+#!/usr/bin/bash
+# upgrades the system. the upgrade runs in upgrade.service, which this starts and follows.
+set -euo pipefail
+
+if (( $# > 0 )); then
+    echo 'usage: upgrade' >&2
+    exit 1
+fi
+exec /usr/lib/upgrade/start upgrade.service
