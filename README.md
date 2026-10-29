@@ -36,6 +36,10 @@ To ensure that automated system upgrades do not interrupt normal system function
 
 The PKGBUILD builds the release tagged with its version, downloaded from github. To build the checkout you're in instead, including uncommitted changes, run `./makepkg-local`, which takes makepkg's options, for example `./makepkg-local -si` to install it. It builds in a temporary folder that's removed afterwards, so nothing is left in the checkout. To keep the package, set `PKGDEST`, for example `PKGDEST=~/packages ./makepkg-local`.
 
+### Releasing
+
+Pushing a tag publishes the PKGBUILD to the AUR, through the workflow in `.github/workflows/aur.yml`. For a new version, set `pkgver` to it and `pkgrel=1` in the PKGBUILD, add it to the CHANGELOG, commit, then tag the commit with the version, for example `git tag 0.4.0`, and push the commit and the tag. For a fix to the PKGBUILD alone, increase `pkgrel` instead and tag it as version-pkgrel, for example `0.4.0-2`; the package still builds the code tagged with the version. The workflow stops without publishing if the tag doesn't match the PKGBUILD.
+
 ## Configuration
 
 ### /etc/upgrade.toml
