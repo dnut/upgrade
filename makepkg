@@ -15,4 +15,4 @@ trap 'rm -rf "$build"' EXIT
 mkdir -p "$build/$pkgname/src"
 ln -s "$PWD" "$build/$pkgname/src/$pkgname-$pkgver"
 
-BUILDDIR=$build PKGDEST=$PWD/dist LOGDEST=$build makepkg --noextract --force "$@"
+BUILDDIR=$build PKGDEST=$PWD/dist LOGDEST=$build /usr/bin/makepkg --noextract --force "$@"
