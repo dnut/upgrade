@@ -12,7 +12,7 @@ You should always keep your system up to date! But the automation can be disable
 
 ## Running it yourself
 
-The `upgrade`, `autoremove` and `clearpkgcache` commands start a systemd service (`upgrade.service`, `upgrade-autoremove.service` or `upgrade-clearpkgcache.service`) and show its output until it finishes. The work always runs inside the service, as root, and never in your own session. Only one of the three runs at a time, and running `upgrade` while the timer's upgrade is going follows that run instead of starting another.
+The `upgrade`, `autoremove` and `clearpkgcache` commands start a systemd service (`upgrade.service`, `autoremove.service` or `clearpkgcache.service`) and show its output until it finishes. The work always runs inside the service, as root, and never in your own session. Only one of the three runs at a time, and running `upgrade` while the timer's upgrade is going follows that run instead of starting another.
 
 To see the output, you need to be able to read the system journal, which root and the `wheel`, `adm` and `systemd-journal` groups can. Anyone else only sees whether the run succeeded. Pressing Ctrl-C stops showing the output, but the run carries on.
 
@@ -52,7 +52,7 @@ The `upgrade` user is allowed to run pacman through sudo, so that yay or paru ca
 
 `autoremove` removes packages that were installed as dependencies and are no longer needed. `upgrade` runs `autoremove --noconfirm` after each upgrade when `autoremove` is enabled in /etc/upgrade.conf, and you can also run it yourself. By default it keeps packages that other packages optionally depend on, and keeps any config files you modified as `.pacsave` files.
 
-When root runs `autoremove`, it runs directly in root's shell, has pacman show the full list of packages and ask before removing anything, and accepts any of the options below. Anyone can use `--dry-run`. Other users, such as members of `upgraders`, can only run it without options, which starts `upgrade-autoremove.service` and removes the packages with the defaults and without asking.
+When root runs `autoremove`, it runs directly in root's shell, has pacman show the full list of packages and ask before removing anything, and accepts any of the options below. Anyone can use `--dry-run`. Other users, such as members of `upgraders`, can only run it without options, which starts `autoremove.service` and removes the packages with the defaults and without asking.
 - `--optdeps`: Also remove packages that other packages only optionally depend on.
 - `--config`: Also delete config files that you modified, instead of keeping them as `.pacsave` files.
 - `--noconfirm`: Remove the packages without asking.

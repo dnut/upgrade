@@ -6,7 +6,7 @@ By default this is a conservative autoremove that leaves behind:
 - any config files for the package that were modified by the user, unless --config
 """
 
-# the autoremove worker. root runs it through the autoremove command or upgrade-autoremove.service,
+# the autoremove worker. root runs it through the autoremove command or autoremove.service,
 # and anyone can run it with --dry-run, since reading the package database needs no privileges.
 
 import argparse

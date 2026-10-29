@@ -1,5 +1,5 @@
 #!/usr/bin/bash
-# the clearpkgcache worker. runs as root, from upgrade-clearpkgcache.service or the upgrade worker.
+# the clearpkgcache worker. runs as root, from clearpkgcache.service or the upgrade worker.
 set -eu
 
 # keep the two most recent versions of each installed package, and the most recent version of each
