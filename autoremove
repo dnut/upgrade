@@ -60,7 +60,8 @@ def main():
     if args.config:
         flags.append("-n")  # -n deletes modified config files instead of keeping them as .pacsave
     print("Removing orphaned packages.", flush=True)
-    execvp(args.dry_run, "sudo", ["sudo", "pacman", "-R", *flags, *unneeded])
+    # -- so a package name can never be read as a pacman option
+    execvp(args.dry_run, "sudo", ["sudo", "pacman", "-R", *flags, "--", *unneeded])
 
 
 def execvp(dry_run, cmd, args):
