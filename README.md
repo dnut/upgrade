@@ -34,7 +34,7 @@ To ensure that automated system upgrades do not interrupt normal system function
 
 ### Building from this repo
 
-The PKGBUILD builds the release tagged with its version, downloaded from github. To build the checkout you're in instead, including uncommitted changes, run `./makepkg-local`, which takes makepkg's options, for example `./makepkg-local -si` to install it. It builds in a temporary folder that's removed afterwards, so nothing is left in the checkout. To keep the package, set `PKGDEST`, for example `PKGDEST=~/packages ./makepkg-local`.
+The PKGBUILD builds the release tagged with its version, downloaded from github. To build the checkout you're in instead, including uncommitted changes, run `./makepkg`, which takes makepkg's options, for example `./makepkg -si` to install it. The package is put in `dist/`, and the build itself happens in a temporary folder that's removed afterwards.
 
 ### Releasing
 

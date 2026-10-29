@@ -11,7 +11,7 @@ optdepends=('yay: upgrade AUR packages'
             'paru: upgrade AUR packages'
             'flatpak: upgrade flatpak packages')
 install=$pkgname.install
-# the release tagged with this version. ./makepkg-local builds the checkout it's in instead.
+# the release tagged with this version. ./makepkg in the github repo builds the checkout instead.
 source=("$pkgname-$pkgver::git+https://github.com/dnut/upgrade#tag=$pkgver")
 sha256sums=('SKIP')
 
