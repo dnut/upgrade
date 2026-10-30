@@ -1,0 +1,5 @@
+# builds AUR packages for upgrade.service. it can run pacman as root, see /etc/sudoers.d/upgrade.
+u aur-upgrader - "AUR builds for the upgrade package" /var/lib/aur-upgrader
+# members may start the upgrade, autoremove and clearpkgcache services, see
+# /usr/share/polkit-1/rules.d/upgrade.rules
+g upgraders -
