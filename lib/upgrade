@@ -59,7 +59,8 @@ if is_enabled autoremove; then
     fi
 fi
 
-if is_enabled clean_cache_on_success; then
+# only after a run where nothing failed, so a failed AUR build's files are still there to look at
+if is_enabled clean_cache_on_success && ! $failed; then
     /usr/lib/upgrade/clearpkgcache
 fi
 
