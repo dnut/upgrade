@@ -13,6 +13,8 @@ options = tomllib.load(open(sys.argv[1], "rb")) | tomllib.load(open(sys.argv[2],
 ' /usr/lib/upgrade/defaults.toml "$config")
 is_enabled() { grep -qxF "$1" <<<"$enabled"; }
 
+# pacman -Syu, or self-upgrade below, can install a new version of upgrade itself
+version=$(pacman -Q upgrade)
 echo Upgrading the system with pacman.
 pacman -Syu --noconfirm
 
@@ -23,6 +25,13 @@ failed=false
 if ! /usr/lib/upgrade/self-upgrade; then
     echo Upgrading upgrade from the AUR failed, continuing with the rest of the upgrade. >&2
     failed=true
+fi
+
+# this worker keeps running its old copy, so it would drive the new version's files for the rest of
+# the run. the new worker starts the run over, and finds the steps so far have nothing left to do.
+if [[ $(pacman -Q upgrade) != "$version" ]]; then
+    echo Continuing the run with the new version of upgrade.
+    exec /usr/lib/upgrade/upgrade
 fi
 
 # AUR packages are built as the aur-upgrader user, since makepkg refuses to run as root
