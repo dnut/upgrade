@@ -11,6 +11,7 @@ By default this is a conservative autoremove that leaves behind:
 
 import argparse
 import os
+import sys
 
 import pyalpm
 import pycman.config
@@ -46,6 +47,12 @@ def main():
     unneeded = unneeded_packages(handle.get_localdb().pkgcache, not args.optdeps)
     if not unneeded:
         return
+    # pacman would refuse anyone else, so say why, and what works instead
+    if not args.dry_run and os.geteuid() != 0:
+        sys.exit(
+            "Only root can remove packages with autoremove's options. Without options, autoremove "
+            "removes them through autoremove.service, using the defaults."
+        )
 
     flags = []
     if args.noconfirm:

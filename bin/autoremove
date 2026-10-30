@@ -2,7 +2,7 @@
 # removes orphaned packages. root runs the worker in its own shell, with any options, holding the
 # lock so it can't remove packages from under an upgrade run, such as the ones yay installs to build.
 # anyone else starts autoremove.service without options, which uses the defaults. with options, they
-# run the worker as themselves, where pacman refuses to remove anything, so only --dry-run and --help
+# run the worker as themselves, which can't remove anything as them, so only --dry-run and --help
 # are of use.
 set -euo pipefail
 worker=/usr/lib/upgrade/autoremove
