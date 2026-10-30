@@ -106,6 +106,6 @@ When you enable `upgrade_aur`, `upgrade` builds and installs new versions of you
 
 The builds run as the `aur-upgrader` user, which can run pacman as root through sudo, because yay and paru need that to install packages and their build dependencies. So code that runs during a build can also get root. Building as a user without sudo wouldn't remove the risk, because the package a build produces is installed as root anyway. Only root and the upgrade services run anything as `aur-upgrader`, so no other user can use its sudo access. Keep it that way: anyone who can run commands as `aur-upgrader`, for example through a sudo rule, can get root.
 
-Whether or not `upgrade_aur` is on, `upgrade` updates itself from the AUR on every run, so its own fixes always arrive. It's built as `aur-upgrader` too, so you're trusting its maintainer (me) the same way you did when you installed it.
+Whether or not `upgrade_aur` is on, `upgrade` updates itself from the AUR on every run, so its own fixes always arrive, unless you add it to `IgnorePkg` in /etc/pacman.conf. It's built as `aur-upgrader` too, so you're trusting its maintainer (me) the same way you did when you installed it.
 
 If you'd rather read AUR changes before they're installed, leave `upgrade_aur` off and upgrade AUR packages yourself with yay or paru, which can show you the changes first.

@@ -5,6 +5,15 @@
 set -euo pipefail
 build=/var/lib/aur-upgrader/.cache/upgrade
 
+# pacman -U below doesn't check IgnorePkg, so an admin who holds upgrade back is checked here,
+# matching its globs the way pacman does
+while read -r ignored; do
+    if [[ upgrade == $ignored ]]; then
+        echo "Not upgrading upgrade from the AUR, since IgnorePkg in pacman.conf has it."
+        exit
+    fi
+done < <(pacman-conf IgnorePkg)
+
 /usr/lib/upgrade/as-aur-upgrader rm -rf "$build"
 /usr/lib/upgrade/as-aur-upgrader git clone -q --depth 1 https://aur.archlinux.org/upgrade.git "$build"
 srcinfo() { sed -n "s/^\t$1 = //p" "$build/.SRCINFO"; }
