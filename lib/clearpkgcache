@@ -8,5 +8,8 @@ paccache -rk2
 paccache -ruk1
 
 # the AUR builds in aur-upgrader's home: yay's, paru's and self-upgrade's. as aur-upgrader, because
-# root deleting inside its home could follow a symlink planted there.
+# root deleting inside its home could follow a symlink planted there. go builds can leave read-only
+# folders, which rm can't empty, so they're made writable first. chmod fails when there's no cache,
+# which is fine, and rm still reports anything that's really in the way.
+/usr/lib/upgrade/as-aur-upgrader chmod -R u+w /var/lib/aur-upgrader/.cache 2>/dev/null || true
 /usr/lib/upgrade/as-aur-upgrader rm -rf /var/lib/aur-upgrader/.cache
