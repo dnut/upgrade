@@ -26,6 +26,7 @@ fi
 
 echo "Upgrading upgrade from $installed to $aur, from the AUR."
 cd "$build"
-# makepkg.conf may point these at folders that aur-upgrader can't write to
-/usr/lib/upgrade/as-aur-upgrader BUILDDIR="$build" SRCDEST="$build" PKGDEST="$build" makepkg --nodeps --noconfirm
-pacman -U --noconfirm "$build/upgrade-$aur"-*.pkg.tar.*
+# makepkg.conf may point these at folders that aur-upgrader can't write to, compress the package
+# some other way, or sign it with a key that aur-upgrader doesn't have
+/usr/lib/upgrade/as-aur-upgrader BUILDDIR="$build" SRCDEST="$build" PKGDEST="$build" PKGEXT=.pkg.tar.zst makepkg --nodeps --noconfirm --nosign
+pacman -U --noconfirm "$build/upgrade-$aur"-*.pkg.tar.zst
