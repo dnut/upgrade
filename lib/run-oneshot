@@ -1,7 +1,9 @@
 #!/usr/bin/bash
-# starts one of the upgrade services, shows its output until it finishes, and exits with its result.
-# the upgrade, autoremove and clearpkgcache commands use this, so the work itself only ever runs
-# inside the service, never in the caller's session.
+# runs one of the upgrade services like a command: starts it, or joins a run that's already going,
+# shows its output until the run ends, and exits with its result. the upgrade, autoremove and
+# clearpkgcache commands use this, so the work itself only ever runs inside the service, never in the
+# caller's session. only for Type=oneshot services without RemainAfterExit: their start lasts the
+# whole run, they're activating while it's going, and they can be started again once it's done.
 set -euo pipefail
 unit=$1
 

@@ -17,4 +17,4 @@ elif (( $# > 0 )); then
     echo 'Only root can pass options to autoremove, apart from --dry-run.' >&2
     exit 1
 fi
-exec /usr/lib/upgrade/start autoremove.service
+exec /usr/lib/upgrade/run-oneshot autoremove.service

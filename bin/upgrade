@@ -6,4 +6,4 @@ if (( $# > 0 )); then
     echo 'usage: upgrade' >&2
     exit 1
 fi
-exec /usr/lib/upgrade/start upgrade.service
+exec /usr/lib/upgrade/run-oneshot upgrade.service
