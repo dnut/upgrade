@@ -20,12 +20,14 @@ pacman -Syu --noconfirm
 
 # a failed step below doesn't stop the ones after it, but still fails the run at the end
 failed=false
+# says a step failed, and that the run carries on without it
+step_failed() {
+    echo "$1 failed, continuing with the rest of the upgrade." >&2
+    failed=true
+}
 
 # upgrade updates itself from the AUR even with upgrade_aur off, so its own fixes always arrive
-if ! /usr/lib/upgrade/self-upgrade; then
-    echo Upgrading upgrade from the AUR failed, continuing with the rest of the upgrade. >&2
-    failed=true
-fi
+/usr/lib/upgrade/self-upgrade || step_failed "Upgrading upgrade from the AUR"
 
 # this worker keeps running its old copy, so it would drive the new version's files for the rest of
 # the run. the new worker starts the run over, and finds the steps so far have nothing left to do.
@@ -38,10 +40,10 @@ fi
 if is_enabled upgrade_aur; then
     if command -v yay >/dev/null; then
         echo Upgrading AUR packages with yay.
-        /usr/lib/upgrade/as-aur-upgrader yay --removemake -Syu --noconfirm
+        /usr/lib/upgrade/as-aur-upgrader yay --removemake -Syu --noconfirm || step_failed "Upgrading AUR packages"
     elif command -v paru >/dev/null; then
         echo Upgrading AUR packages with paru.
-        /usr/lib/upgrade/as-aur-upgrader paru --removemake -Syu --noconfirm
+        /usr/lib/upgrade/as-aur-upgrader paru --removemake -Syu --noconfirm || step_failed "Upgrading AUR packages"
     else
         echo No AUR helper found, skipping AUR package upgrades.
     fi
@@ -49,14 +51,11 @@ fi
 
 if is_enabled upgrade_flatpak && command -v flatpak >/dev/null; then
     echo Upgrading flatpak packages.
-    flatpak update --noninteractive
+    flatpak update --noninteractive || step_failed "Upgrading flatpak packages"
 fi
 
 if is_enabled autoremove; then
-    if ! /usr/lib/upgrade/autoremove --noconfirm; then
-        echo Autoremove failed, continuing with the rest of the upgrade. >&2
-        failed=true
-    fi
+    /usr/lib/upgrade/autoremove --noconfirm || step_failed Autoremove
 fi
 
 # only after a run where nothing failed, so a failed AUR build's files are still there to look at
