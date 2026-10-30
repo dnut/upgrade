@@ -14,8 +14,8 @@ optdepends=('yay: upgrade AUR packages'
 # nothing to strip, and without these makepkg needs strip and debugedit, which base-devel brings
 options=('!strip' '!debug')
 install=$pkgname.install
-# the release tagged with this version. ./makepkg in the github repo builds the checkout instead.
-source=("$pkgname-$pkgver::git+https://github.com/dnut/upgrade#tag=$pkgver")
+# the release tagged v$pkgver. ./makepkg in the github repo builds the checkout instead.
+source=("$pkgname-$pkgver::git+https://github.com/dnut/upgrade#tag=v$pkgver")
 sha256sums=('SKIP')
 
 package() {

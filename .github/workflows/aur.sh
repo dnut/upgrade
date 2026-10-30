@@ -13,14 +13,15 @@ main() { local tag=$1 files
     push_to_aur "$files" "$tag"
 }
 
-# only publish a PKGBUILD from the release it names. pkgrel 1 is tagged with the version, later ones
-# with version-pkgrel.
-check_tag() { local tag=$1 expected
+# only publish a PKGBUILD from the release it names, which is tagged v<pkgver>
+check_tag() { local tag=$1
     source PKGBUILD
-    expected=$pkgver
-    if (( pkgrel > 1 )); then expected+=-$pkgrel; fi
-    if [[ $tag != "$expected" ]]; then
-        echo "::error::The tag is $tag, but the PKGBUILD is $pkgver-$pkgrel, which is tagged $expected."
+    if [[ $pkgrel != 1 ]]; then
+        echo "::error::pkgrel is $pkgrel, but it should be hardcoded to 1. pkgrel is not used for upgrade since the project is self-packaged."
+        exit 1
+    fi
+    if [[ $tag != "v$pkgver" ]]; then
+        echo "::error::The tag is $tag, but the PKGBUILD is version $pkgver, which is tagged v$pkgver."
         exit 1
     fi
 }

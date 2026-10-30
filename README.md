@@ -45,7 +45,7 @@ To ensure that automated system upgrades do not interrupt normal system function
 
 ### Building from this repo
 
-The PKGBUILD builds the release tagged with its version, downloaded from github. To build the checkout you're in instead, including uncommitted changes, run `./makepkg`, which takes makepkg's options, for example `./makepkg -si` to install it. The package is put in `dist/`, and the build itself happens in a temporary folder that's removed afterwards.
+The PKGBUILD builds the release tagged with its version, for example `v0.4.0`, downloaded from github. To build the checkout you're in instead, including uncommitted changes, run `./makepkg`, which takes makepkg's options, for example `./makepkg -si` to install it. The package is put in `dist/`, and the build itself happens in a temporary folder that's removed afterwards.
 
 ## Configuration
 
