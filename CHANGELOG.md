@@ -2,7 +2,7 @@
 
 - Run the upgrade, autoremove and package cache cleanup as root inside systemd services, instead of through sudo in the session of whoever runs them. The `upgrade`, `autoremove` and `clearpkgcache` commands now start these services and show their output.
 - upgrade.timer is no longer enabled when the package is installed. Enable it with `systemctl enable --now upgrade.timer`. Upgrading keeps it enabled.
-- Members of `upgraders` are allowed to start the services by a polkit rule, instead of sudo. Apart from `--dry-run`, only root can pass options to `autoremove`.
+- Members of `upgraders` are allowed to start the services by a polkit rule, instead of sudo. `autoremove` with options runs in the caller's own shell, so only root can remove packages with them.
 - Add `autoremove`, which removes orphaned packages after each upgrade.
 - Keep the two most recent versions of each package in the cache, using paccache, instead of deleting the whole cache.
 - Read the settings from /etc/upgrade.toml instead of /etc/upgrade.conf, and don't install a default one, because it's only needed to change a default. When upgrading, a changed upgrade.conf is moved to upgrade.toml. The format is the same.

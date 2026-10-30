@@ -1,20 +1,15 @@
 #!/usr/bin/bash
-# removes orphaned packages. anyone can --dry-run and root can pass any option, since both run the
-# worker directly. everyone else starts autoremove.service, which uses the default options.
+# removes orphaned packages. root runs the worker in its own shell, with any options, holding the
+# lock so it can't remove packages from under an upgrade run, such as the ones yay installs to build.
+# anyone else starts autoremove.service without options, which uses the defaults. with options, they
+# run the worker as themselves, where pacman refuses to remove anything, so only --dry-run and --help
+# are of use.
 set -euo pipefail
 worker=/usr/lib/upgrade/autoremove
 
-# argparse also accepts any unambiguous prefix of an option, such as --dry, and only --dry-run and
-# --help start with --d and --h
-for arg in "$@"; do
-    case $arg in
-        --d* | -h | --h*) exec "$worker" "$@" ;;
-    esac
-done
 if [[ $EUID == 0 ]]; then
     exec /usr/lib/upgrade/locked "$worker" "$@"
 elif (( $# > 0 )); then
-    echo 'Only root can pass options to autoremove, apart from --dry-run.' >&2
-    exit 1
+    exec "$worker" "$@"
 fi
 exec /usr/lib/upgrade/run-oneshot autoremove.service

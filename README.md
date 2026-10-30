@@ -60,7 +60,7 @@ The `aur-upgrader` user is allowed to run pacman through sudo, so that yay or pa
 
 `autoremove` removes packages that were installed as dependencies and are no longer needed. `upgrade` runs `autoremove --noconfirm` after each upgrade when `autoremove` is enabled in /etc/upgrade.toml, and you can also run it yourself. By default it keeps packages that other packages optionally depend on, and keeps any config files you modified as `.pacsave` files.
 
-When root runs `autoremove`, it runs directly in root's shell, has pacman show the full list of packages and ask before removing anything, and accepts any of the options below. Anyone can use `--dry-run`. Other users, such as members of `upgraders`, can only run it without options, which starts `autoremove.service` and removes the packages with the defaults and without asking.
+When root runs `autoremove`, it runs directly in root's shell, has pacman show the full list of packages and ask before removing anything, and accepts any of the options below. When other users, such as members of `upgraders`, run it without options, it starts `autoremove.service`, which removes the packages with the defaults and without asking. With options, it runs in their own shell instead, where only `--dry-run` and `--help` are of use, since pacman only lets root remove packages.
 - `--optdeps`: Also remove packages that other packages only optionally depend on.
 - `--config`: Also delete config files that you modified, instead of keeping them as `.pacsave` files.
 - `--noconfirm`: Remove the packages without asking.
