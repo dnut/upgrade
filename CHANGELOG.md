@@ -1,17 +1,25 @@
 # 0.4.0
 
-- Run the upgrade, autoremove and package cache cleanup as root inside systemd services, instead of through sudo in the session of whoever runs them. The `upgrade`, `autoremove` and `clearpkgcache` commands now start these services and show their output.
-- upgrade.timer is no longer enabled when the package is installed. Enable it with `systemctl enable --now upgrade.timer`. Upgrading keeps it enabled.
-- Members of `upgraders` are allowed to start the services by a polkit rule, instead of sudo. `autoremove` with options runs in the caller's own shell, so only root can remove packages with them.
-- Add `autoremove`, which removes orphaned packages after each upgrade.
-- Keep the two most recent versions of each package in the cache, using paccache, instead of deleting the whole cache.
-- Read the settings from /etc/upgrade.toml instead of /etc/upgrade.conf, and don't install a default one, because it's only needed to change a default. When upgrading, a changed upgrade.conf is moved to upgrade.toml. The format is the same.
-- Stop with an error if /etc/upgrade.toml isn't valid TOML, instead of guessing.
-- AUR packages are no longer upgraded by default. To keep upgrading them, put `upgrade_aur = true` in /etc/upgrade.toml. A changed upgrade.conf that was moved there usually already has it, from the old default file.
-- `upgrade` updates itself from the AUR on every run, even with `upgrade_aur` off, building it as `aur-upgrader` with makepkg. When it does, the rest of that run uses the new version. Add it to `IgnorePkg` in /etc/pacman.conf to stop this.
-- Depends on polkit, python, pyalpm, pacman-contrib, git and fakeroot.
-- Build AUR packages as a new `aur-upgrader` user, with its home in /var/lib/aur-upgrader, instead of the `upgrade` user. It starts with empty caches, so if you configured yay or paru for `upgrade`, copy that configuration over. Once a run with this version has finished, delete the old user with `userdel -r upgrade`.
-- The scheduled run that installs this version may fail once, because the old version is still running. The next run uses the new version.
+This release makes `upgrade` safer. It hardens the permission model and uses lower-risk defaults for its automation. It also adds a new `autoremove` capability to clean up orphans.
+
+- Runs in systemd services, which polkit lets users start, instead of running scripts through sudo.
+  - The upgrade and cache cleanup run as root in oneshot services, so `systemctl start` waits for them to finish. The `upgrade` and `clearpkgcache` commands start the service and show its output.
+  - `upgraders` can start the services without a password, and `wheel` after typing theirs.
+  - Seeing the output needs access to the journal: root, `wheel`, `adm` or `systemd-journal`. Others only see whether the run succeeded.
+  - Running a command while it's already running follows that run. Only one of upgrade, autoremove and clearpkgcache runs at a time.
+  - Shutdown is blocked while packages are changing.
+- Adds `autoremove`, which removes orphaned packages. `upgrade` runs it after each upgrade unless `autoremove = false`.
+- upgrade.timer is no longer enabled on install. Enable it with `systemctl enable --now upgrade.timer`. Upgrading keeps it enabled.
+- AUR packages are built by a new `aur-upgrader` user instead of `upgrade`. Copy over any yay or paru configuration. After a run on this version, the old user can be deleted with `userdel -r upgrade`.
+- AUR packages are no longer upgraded by default. Set `upgrade_aur = true` to keep them upgrading.
+  - `upgrade` still updates itself from the AUR on every run, unless it's in pacman.conf's `IgnorePkg`.
+- Other changes:
+  - Settings move from /etc/upgrade.conf to /etc/upgrade.toml, which isn't installed by default. A changed upgrade.conf is moved there on upgrade. An invalid file stops the run.
+  - Missing settings use their defaults instead of being off. A changed upgrade.conf from before 0.3.0 has no `upgrade_flatpak`, so flatpak upgrades turn on.
+  - A failed step no longer stops the ones after it, but the run still fails.
+  - The cache cleanup keeps the two latest versions of each installed package and the latest of each removed one, instead of deleting everything. It deletes all AUR build files, not just paru's.
+  - Depends on polkit, python, pyalpm, pacman-contrib, git and fakeroot.
+  - The scheduled run that installs this version may fail once. The next run uses the new version.
 
 # 0.3.0
 
