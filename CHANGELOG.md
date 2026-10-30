@@ -9,7 +9,7 @@
 - Stop with an error if /etc/upgrade.toml isn't valid TOML, instead of guessing.
 - AUR packages are no longer upgraded by default. To keep upgrading them, put `upgrade_aur = true` in /etc/upgrade.toml. A changed upgrade.conf that was moved there usually already has it, from the old default file.
 - `upgrade` updates itself from the AUR on every run, even with `upgrade_aur` off, building it as `aur-upgrader` with makepkg. When it does, the rest of that run uses the new version. Add it to `IgnorePkg` in /etc/pacman.conf to stop this.
-- Depends on polkit, python, pyalpm, pacman-contrib and git.
+- Depends on polkit, python, pyalpm, pacman-contrib, git and fakeroot.
 - Build AUR packages as a new `aur-upgrader` user, with its home in /var/lib/aur-upgrader, instead of the `upgrade` user. It starts with empty caches, so if you configured yay or paru for `upgrade`, copy that configuration over. Once a run with this version has finished, delete the old user with `userdel -r upgrade`.
 - The scheduled run that installs this version may fail once, because the old version is still running. The next run uses the new version.
 

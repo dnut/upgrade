@@ -6,10 +6,13 @@ pkgdesc='Automate system upgrades'
 arch=('any')
 url='https://github.com/dnut/upgrade'
 license=('GPL3')
-depends=('kernel-modules-hook' 'polkit' 'python' 'pyalpm' 'pacman-contrib' 'git')
+# fakeroot for makepkg, which builds the package when upgrade updates itself
+depends=('kernel-modules-hook' 'polkit' 'python' 'pyalpm' 'pacman-contrib' 'git' 'fakeroot')
 optdepends=('yay: upgrade AUR packages'
             'paru: upgrade AUR packages'
             'flatpak: upgrade flatpak packages')
+# nothing to strip, and without these makepkg needs strip and debugedit, which base-devel brings
+options=('!strip' '!debug')
 install=$pkgname.install
 # the release tagged with this version. ./makepkg in the github repo builds the checkout instead.
 source=("$pkgname-$pkgver::git+https://github.com/dnut/upgrade#tag=$pkgver")
