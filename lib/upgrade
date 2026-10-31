@@ -50,6 +50,19 @@ upgrade_flatpak() {
     fi
 }
 
+# with noconfirm off, a dry run first, so that pacman's questions wait for the admin. like
+# checkupdates, it has its own copy of the sync databases, so the real ones stay matched to the
+# installed packages. at the end of its input, pacman answers no, so it changes nothing.
+if ! is_enabled noconfirm; then
+    echo Checking whether pacman has questions for the upgrade.
+    dryrun=/var/lib/upgrade/dryrun
+    mkdir -p "$dryrun"
+    ln -sfn "$(pacman-conf DBPath)/local" "$dryrun/local"
+    pacman -Sy --dbpath "$dryrun" --logfile /dev/null >/dev/null
+    LANG=C pacman -Su --dbpath "$dryrun" --logfile /dev/null </dev/null >"$UPGRADE_RUN/dryrun.out" 2>&1 || true
+fi
+/usr/lib/upgrade/notices questions "$UPGRADE_RUN/dryrun.out"
+
 # until the admin has handled what blocks upgrades, such as unread news, nothing goes through pacman
 # and the run fails. flatpak doesn't involve pacman, so it still upgrades.
 /usr/lib/upgrade/notices news

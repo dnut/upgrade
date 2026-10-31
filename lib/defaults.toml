@@ -16,6 +16,11 @@ clean_cache_on_success = true
 # packages that are still optional dependencies.
 autoremove = true
 
+# let pacman answer its own questions with their defaults, such as whether to replace a package with
+# another. when false, a run that pacman has questions for changes nothing until the admin answers
+# them with pacman -Syu, or has the next run answer them with upgrade ack.
+noconfirm = true
+
 # stop upgrading packages while there's Arch Linux news that hasn't been acknowledged with
 # upgrade ack, since some posts announce manual steps needed before or after an upgrade
 block_on_news = true
