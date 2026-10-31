@@ -106,10 +106,12 @@ Each run records what it leaves for you to read or handle, as notices:
 Some notices can block upgrades until they're acknowledged: Arch Linux news when `block_on_news = true`, and pacman's questions when `noconfirm = false`. With `noconfirm = false`, each run first asks pacman for its questions in a dry run, and if there are any, changes nothing until you answer them by running `pacman -Syu` yourself, or acknowledge them, so that the next run answers them with the defaults. While upgrades are blocked, nothing goes through pacman: not the system upgrade, the AUR packages, `upgrade`'s self-update or autoremove. flatpak packages still upgrade. Blocked runs fail, so `systemctl status upgrade` shows it too.
 
 You're told about notices in the ways that `notifications` in /etc/upgrade.toml lists, all of them by default:
-- `motd`: at console and SSH logins, through pam_motd. Everyone who logs in sees it.
-- `shell`: a one-line summary in the login shells of root, `wheel` and `upgraders`, and in all their interactive fish shells. To see it in every bash or zsh, add `. /etc/profile.d/upgrade.sh` to your `~/.bashrc` or `~/.zshrc`.
+- `motd`: a one-line summary at console and SSH logins, through pam_motd. Everyone who logs in sees it.
+- `shell`: the same line in the login shells of root, `wheel` and `upgraders`, and in all their interactive fish shells. To see it in every bash or zsh, add `. /etc/profile.d/upgrade.sh` to your `~/.bashrc` or `~/.zshrc`.
 - `wall`: a one-line message on the terminals of everyone logged in.
 - `desktop`: a desktop notification for root, `wheel` and `upgraders`, if libnotify is installed.
+
+The `motd`, `shell` and `wall` lines start with the channel's name, such as `[motd]`, so you know which entry of `notifications` shows them. An SSH login shows both `motd` and `shell`, so you see the line twice unless you turn one of them off.
 
 `wall` and `desktop` only send for the timer's runs, when they find something new, and once a day while upgrades are blocked. A run you start yourself lists the notices at the end of its output instead.
 

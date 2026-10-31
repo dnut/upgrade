@@ -351,11 +351,9 @@ def publish(options, realtime=True):
     count = "1 notice needs" if len(current) == 1 else f"{len(current)} notices need"
     headline = f"upgrade: {'upgrades are blocked, and ' * bool(blocked)}{count} your attention"
     line = headline + ", see `upgrade status`.\n"
-    lines = headline + ":\n" + indent(titles)
-    lines += "See them with upgrade status, and once they're handled, run sudo upgrade ack.\n"
-    for channel, path, text in [("shell", SUMMARY, line), ("motd", MOTD, lines)]:
+    for channel, path in [("shell", SUMMARY), ("motd", MOTD)]:
         if current and channel in options["notifications"]:
-            path.write_text(text)
+            path.write_text(f"[{channel}] {line}")
         else:
             path.unlink(missing_ok=True)
 
@@ -365,13 +363,14 @@ def publish(options, realtime=True):
     # while upgrades are blocked, a reminder once a day, since security updates are piling up
     if realtime and (new or blocked and time.time() - sent > 24 * 60 * 60):
         if "wall" in options["notifications"]:
-            subprocess.run(["wall", line])
+            subprocess.run(["wall", f"[wall] {line}"])
         if "desktop" in options["notifications"]:
             desktop(headline, indent(titles))
         sent = time.time()
     PUBLISHED.write_text(f"{sent}\n" + "".join(key + "\n" for key in current))
     if current:
-        print(lines, end="")
+        print(headline + ":\n" + indent(titles), end="")
+        print("See them with upgrade status, and once they're handled, run sudo upgrade ack.")
 
 
 def desktop(title, body):

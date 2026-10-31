@@ -27,6 +27,7 @@ noconfirm = true
 block_on_news = false
 
 # how to tell admins about notices, which are what runs leave for them to read or handle. see
-# "Notices" in the README. motd shows them at console and ssh logins, shell in login shells of root,
-# wheel and upgraders, wall on the terminals of everyone logged in, and desktop as notifications.
+# "Notices" in the README. motd, shell and wall each show a line saying how many there are: motd at
+# console and ssh logins, shell in login shells of root, wheel and upgraders, and wall on the
+# terminals of everyone logged in. desktop lists them in a notification.
 notifications = ["motd", "shell", "wall", "desktop"]
