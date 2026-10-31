@@ -1,0 +1,14 @@
+#!/usr/bin/python -I
+# prints the name of each option that's on, one per line. /etc/upgrade.toml is optional, and only
+# needs the options that differ from defaults.toml. any value but true turns an option off. old
+# upgrade.conf files, moved to upgrade.toml, may quote it.
+import os
+import tomllib
+
+config = "/etc/upgrade.toml"
+options = tomllib.load(open("/usr/lib/upgrade/defaults.toml", "rb"))
+if os.path.exists(config):
+    options |= tomllib.load(open(config, "rb"))
+for name, value in options.items():
+    if value is True or value == "true":
+        print(name)

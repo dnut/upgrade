@@ -22,7 +22,7 @@ package() {
     cd "$srcdir/$pkgname-$pkgver"
 
     install -Dm755 -t "$pkgdir/usr/bin" bin/{upgrade,autoremove,clearpkgcache}
-    install -Dm755 -t "$pkgdir/usr/lib/upgrade" lib/{as-aur-upgrader,autoremove,clearpkgcache,locked,run-oneshot,self-upgrade,upgrade}
+    install -Dm755 -t "$pkgdir/usr/lib/upgrade" lib/{as-aur-upgrader,autoremove,clearpkgcache,config,locked,run-oneshot,self-upgrade,upgrade}
     install -Dm644 -t "$pkgdir/usr/lib/upgrade" lib/defaults.toml
 
     install -Dm644 -t "$pkgdir/usr/lib/systemd/system" systemd/{upgrade.service,upgrade.timer,autoremove.service,clearpkgcache.service}
