@@ -28,6 +28,8 @@ ACKNOWLEDGED = STATE / "acknowledged"
 PUBLISHED = STATE / "published"
 SUMMARY = STATE / "summary"
 MOTD = STATE / "motd"
+# the last copy of the Arch Linux news feed
+FEED = STATE / "news.xml"
 
 
 def main():
@@ -57,16 +59,23 @@ def main():
 
 
 def news():
-    """refreshes the notices of Arch Linux news posts. on the first run, the posts from before the
-    last full system upgrade count as read, since the admin was upgrading by hand until then."""
+    """refreshes the notices of Arch Linux news posts. the feed is fetched at most every 10 minutes,
+    so runs started one after another don't get rate limited, and the last copy is used when it
+    can't be fetched. on the first run, the posts from before the last full system upgrade count as
+    read, since the admin was upgrading by hand until then."""
     try:
-        with urllib.request.urlopen("https://archlinux.org/feeds/news/", timeout=30) as response:
-            items = ElementTree.parse(response).findall("channel/item")
+        if not FEED.exists() or time.time() - FEED.stat().st_mtime > 10 * 60:
+            url = "https://archlinux.org/feeds/news/"
+            with urllib.request.urlopen(url, timeout=30) as response:
+                feed = response.read()
+            ElementTree.fromstring(feed)
+            FEED.write_bytes(feed)
     except (OSError, ElementTree.ParseError) as error:
-        print(f"Couldn't check the Arch Linux news, carrying on without it: {error}")
-        return
+        print(f"Couldn't fetch the Arch Linux news: {error}")
+        if not FEED.exists():
+            return
     posts = {}
-    for item in items:
+    for item in ElementTree.parse(FEED).findall("channel/item"):
         link, date = item.findtext("link"), parsedate_to_datetime(item.findtext("pubDate"))
         text = f"Arch Linux news: {item.findtext('title')} ({date:%Y-%m-%d})\n\n{link}\n"
         posts["news-" + slug(link.rstrip("/").rsplit("/", 1)[-1])] = date, text
