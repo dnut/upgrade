@@ -109,8 +109,7 @@ def questions():
 def blocking():
     """says what blocks upgrades and exits 0, or exits 1 when nothing does"""
     if reasons := blocked_by(config()):
-        print("Not upgrading packages, since these need you first:\n" + indent(reasons), end="")
-        print("See them with upgrade status. Once they're handled, run sudo upgrade ack.")
+        print("Not upgrading packages, since some of the notices listed at the end need you first.")
     sys.exit(0 if reasons else 1)
 
 
@@ -121,7 +120,9 @@ def after():
     run_event(run)
     pacnew()
     failures(run)
-    publish(config())
+    # whoever starts a run by hand sees the notices at the end of its output, so only the timer's
+    # runs, which nobody is watching, send the realtime notifications
+    publish(config(), realtime=os.environ.get("TRIGGER_UNIT") == "upgrade.timer")
 
 
 def status():
@@ -344,12 +345,10 @@ def publish(enabled, realtime=True):
     blocked = blocked_by(enabled)
     count = "1 notice needs" if len(current) == 1 else f"{len(current)} notices need"
     headline = f"upgrade: {'upgrades are blocked, and ' * bool(blocked)}{count} your attention"
+    line = headline + ", see upgrade status.\n"
     lines = headline + ":\n" + indent(titles)
     lines += "See them with upgrade status, and once they're handled, run sudo upgrade ack.\n"
-    for channel, path, text in [
-        ("shell", SUMMARY, headline + ", see upgrade status.\n"),
-        ("motd", MOTD, lines),
-    ]:
+    for channel, path, text in [("shell", SUMMARY, line), ("motd", MOTD, lines)]:
         if current and f"notifications:{channel}" in enabled:
             path.write_text(text)
         else:
@@ -361,7 +360,7 @@ def publish(enabled, realtime=True):
     # while upgrades are blocked, a reminder once a day, since security updates are piling up
     if realtime and (new or blocked and time.time() - sent > 24 * 60 * 60):
         if "notifications:wall" in enabled:
-            subprocess.run(["wall", lines])
+            subprocess.run(["wall", line])
         if "notifications:desktop" in enabled:
             desktop(headline, indent(titles))
         sent = time.time()

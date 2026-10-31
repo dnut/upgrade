@@ -108,10 +108,10 @@ Some notices block upgrades until they're acknowledged: Arch Linux news, unless 
 You're told about notices in the ways that `notifications` in /etc/upgrade.toml lists, all of them by default:
 - `motd`: at console and SSH logins, through pam_motd. Everyone who logs in sees it.
 - `shell`: a one-line summary in the login shells of root, `wheel` and `upgraders`, and in all their interactive fish shells. To see it in every bash or zsh, add `. /etc/profile.d/upgrade.sh` to your `~/.bashrc` or `~/.zshrc`.
-- `wall`: a message on the terminals of everyone logged in.
+- `wall`: a one-line message on the terminals of everyone logged in.
 - `desktop`: a desktop notification for root, `wheel` and `upgraders`, if libnotify is installed.
 
-`wall` and `desktop` only send when a run finds something new, and once a day while upgrades are blocked.
+`wall` and `desktop` only send for the timer's runs, when they find something new, and once a day while upgrades are blocked. A run you start yourself lists the notices at the end of its output instead.
 
 ## Risks
 
