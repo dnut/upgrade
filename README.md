@@ -19,7 +19,7 @@ systemctl enable --now upgrade.timer
 
 `upgrade` will then run automatically every hour and 15 minutes after boot, so you no longer need to run routine manual upgrades. The scheduled runs are skipped while the system is on battery, or on a connection that NetworkManager says is metered.
 
-Please read the [Risks](#risks) section below to understand why this functionality is not built-in to the system already, and why I have created it.
+Please read the [Safety](#safety) section below to understand why this functionality is not built-in to the system already, and why `upgrade` solves the problem safely.
 
 If you choose to enable AUR upgrades, `upgrade` will use either yay or paru under the hood, depending on what you have installed. It prefers yay if both are installed, since paru has a recent history of breakages that prevented upgrades and were not fixed for several months.
 
@@ -66,7 +66,7 @@ The PKGBUILD builds the release tagged with its version, for example `v0.4.0`, d
 
 Create this file to customize the behavior away from the defaults. It does not exist on a vanilla install, and it is not typically required. It only needs the options you change, for example `upgrade_flatpak = false`.
 
-- `upgrade_aur`: Defaults to false. Set to true to also upgrade AUR packages with yay or paru. Read [Risks/AUR packages](#aur-packages) first.
+- `upgrade_aur`: Defaults to false. Set to true to also upgrade AUR packages with yay or paru. Read [Safety/AUR packages](#aur-packages) first.
 - `upgrade_flatpak`: Defaults to true. Upgrades system-wide flatpak packages when true.
 - `clean_cache_on_success`: Defaults to true. When enabled, `upgrade` runs `clearpkgcache` at the end of a run where nothing failed. Set to false if you would like to keep every package in the cache indefinitely. `clearpkgcache` keeps the two most recent versions of each installed package and the most recent version of each uninstalled package, so you can still roll back a bad update or reinstall a removed package. It also deletes the AUR build files that yay, paru and the self-update leave in `/var/lib/aur-upgrader/.cache`.
 - `autoremove`: Defaults to true. When enabled, `upgrade` runs `autoremove --noconfirm` after each upgrade, to remove orphaned packages. Orphans are dependencies that are no longer required or optionally required by any installed package. Any of their configuration files that you modified are kept as `.pacsave` files. See [Removing orphaned packages](#removing-orphaned-packages).
@@ -113,35 +113,32 @@ You're told about notices in the ways that `notifications` in /etc/upgrade.toml 
 
 `wall` and `desktop` only send for the timer's runs, when they find something new, and once a day while upgrades are blocked. A run you start yourself lists the notices at the end of its output instead.
 
-## Risks
+## Safety
 
-System upgrades may require manual intervention to ensure everything is working as you intended. For example:
-- pacman asks for your confirmation before replacing one package with another, in case you specifically prefer the original package
-- if you changed a config file that the new version also changes, pacman keeps yours and saves the new one next to it as a `.pacnew` file, for you to merge
-- packages themselves may choose to print messages for the administrator to act on to deal with the upgrade
-- some upgrades need manual steps that are only announced in the [Arch Linux news](https://archlinux.org/news/), which pacman doesn't show at all
+The usual argument against unattended upgrades is that some upgrades need manual intervention from an administrator. Mindlessly running `pacman -Syu --noconfirm` on a timer does not address these cases well, and can lead to breakage of your system.
 
-`upgrade` tells you about each of these, and can stop for pacman's questions and the news, see [Notices](#notices).
+`upgrade` is different. It was carefully designed to account for scenarios that demand manual intervention. It picks out the information that needs your attention, and presents it in obvious system-wide notifications, equipping you to respond to these issues more proactively than if you were only using pacman.
 
-Some users consider it a best practice to execute all upgrades manually so the administrator can deal with these things during the upgrade.
+Here's how `upgrade` deals with each scenario requiring manual intervention:
+- **pacman's questions**, such as whether to replace one package with another. pacman's default answers are what most administrators choose anyway (in well over a decade of using Arch Linux, I always have), so by default `upgrade` lets pacman take them, and then notifies the administrator with what it decided. Alternatively, you can set `noconfirm = false`, and `upgrade` will notify you that you have decisions to make before the upgrade can be executed.
+- **`.pacnew` and `.pacsave` files**. pacman writes a `.pacnew` when you changed a config file that the new version also changes, and leaves a `.pacsave` when it removes a package whose config you changed. Each one is a notice until you've merged or deleted it.
+- **Messages from pacman that you see after running an upgrade**, such as messages from packages' install scripts, lists of new optional dependencies, and pacman's warnings and errors during the upgrade. These are included in the notices.
+- **Recommendations in the [Arch Linux news](https://archlinux.org/news/)**, which pacman doesn't show at all. Each new post is a notice, and with `block_on_news = true`, upgrades wait until you've acknowledged it. When relevant to upgrades, news messages usually let the user know about one of these events:
+    - urgent security updates: for these, you definitely want `upgrade` running a system update asap! This is why `block_on_news` defaults to false. Security updates are the top priority.
+    - packages requiring maintenance after install: you might as well let it upgrade, since you can only fix these after the upgrade completes.
+    - packages that cannot install without intervention due to conflicts: `upgrade` won't be able to update this anyway, so you don't need to enable `block_on_news` to deal with these cases.
+    - changes you should prepare for before upgrading, such as a driver dropping support for your hardware: pacman upgrades these without complaint, which is what `block_on_news = true` would be useful for. These can be handled after upgrading, but if you don't handle it immediately, you may see some temporary breakages.
+- **Failures**, such as a conflict that pacman won't resolve on its own. The run changes nothing, and the failure is a notice until a later run gets past it.
 
-Before using this package, you must ask yourself:
-- Am I willing to accept pacman's default answer to every question it asks during an upgrade?
-- Am I willing to monitor the upgrade logs and the Arch Linux news, and perform compatibility fixes asynchronously, rather than performing them immediately after the upgrade?
-
-If you answer "yes" to both questions, then it may be reasonable for you to fully automate your upgrades. If you only answer "yes" to the first question, you may still find `upgrade` useful for streaminling your manual upgrade process.
-
-Personally, I consider it a bigger risk to use outdated software than it is to automate upgrades. Security vulnerabilities may be exploited within hours of their publication.
+The notices reach you at login, in your shell, on your terminals and on your desktop, see [Notices](#notices). So the difference from upgrading by hand is when you deal with these things, not whether you see them. If you'd rather make every decision before anything changes, set `noconfirm = false` and `block_on_news = true`, and upgrades will wait for you whenever pacman or the news needs a decision.
 
 If an upgrade does break something, you can downgrade to an older version from pacman's cache, where `clearpkgcache` keeps the two most recent versions of each package. Snapshot tools such as snap-pac also take a snapshot of your filesystem on every pacman run, including the scheduled ones.
 
-After well over a decade of using arch linux as my primary operating system, I realized that I always, without exception, use the default answers suggested by the package manager. `--noconfirm` is the obvious choice to execute the same steps that I was already executing manually. And if you're already running it with `--noconfirm`, then it actually makes zero difference on the outcome of the upgrade whether you trigger it manually or automatically on a schedule. Hence this tool was born.
-
-I have been using this tool since version 0.1.0 on several servers and personal computers without issue. It has been a huge success for me, keeping all my systems up to date at all times, something I always struggled with before creating this tool.
+Running outdated software is a risk of its own, since security vulnerabilities can be exploited within hours of their publication. Keeping your system up to date with `upgrade` is safer than postponing upgrades until you remember to run them.
 
 ### AUR packages
 
-AUR packages are susceptible to supply-chain attacks, so their upgrades are disabled by default. Be very cautious when upgrading these packages.
+AUR packages are susceptible to supply-chain attacks, so their upgrades are disabled by default. Regardless of whether you use `upgrade`, you should be very cautious when upgrading AUR packages.
 
 When you enable `upgrade_aur`, `upgrade` builds and installs new versions of your AUR packages every hour without showing them to you first. Nobody reviews AUR packages before they're published, and malicious changes have reached the AUR before, including in packages that someone took over from their previous maintainer. Once a package is installed, its files and install scripts run as root. So you're trusting the maintainer of every AUR package you have installed, and anyone who gets into their account, with root access to your system.
 
