@@ -22,8 +22,9 @@ autoremove = true
 noconfirm = true
 
 # stop upgrading packages while there's Arch Linux news that hasn't been acknowledged with
-# upgrade ack, since some posts announce manual steps needed before or after an upgrade
-block_on_news = true
+# upgrade ack. some posts announce manual steps needed before an upgrade, but others urge everyone
+# to upgrade right away, which this would hold back. news is a notice either way.
+block_on_news = false
 
 # how to tell admins about notices, which are what runs leave for them to read or handle. see
 # "Notices" in the README. motd shows them at console and ssh logins, shell in login shells of root,
