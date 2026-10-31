@@ -61,7 +61,7 @@ if ! is_enabled noconfirm; then
     pacman -Sy --dbpath "$dryrun" --logfile /dev/null >/dev/null
     LANG=C pacman -Su --dbpath "$dryrun" --logfile /dev/null </dev/null >"$UPGRADE_RUN/dryrun.out" 2>&1 || true
 fi
-/usr/lib/upgrade/notices questions "$UPGRADE_RUN/dryrun.out"
+/usr/lib/upgrade/notices questions
 
 # until the admin has handled what blocks upgrades, such as unread news, nothing goes through pacman
 # and the run fails. flatpak doesn't involve pacman, so it still upgrades.

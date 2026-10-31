@@ -81,7 +81,8 @@ def indent(lines):
 
 
 def pacman_log():
-    return subprocess.run(["pacman-conf", "LogFile"], stdout=subprocess.PIPE, text=True).stdout.strip()
+    log = subprocess.run(["pacman-conf", "LogFile"], stdout=subprocess.PIPE, text=True)
+    return log.stdout.strip()
 
 
 def news():
@@ -100,22 +101,27 @@ def news():
         posts["news-" + slug(link.rstrip("/").rsplit("/", 1)[-1])] = date, text
 
     if not any(key.startswith("news-") for key in acknowledged() | set(notices())):
-        upgrades = [line for line in open(pacman_log(), errors="replace") if "[PACMAN] starting full system upgrade" in line]
-        upgraded = datetime.fromisoformat(upgrades[-1][1:].split("]")[0]) if upgrades else datetime.now().astimezone()
-        save_acknowledged(acknowledged() | {key for key, (date, text) in posts.items() if date < upgraded})
+        log = open(pacman_log(), errors="replace")
+        upgrades = [line for line in log if "[PACMAN] starting full system upgrade" in line]
+        upgraded = datetime.now().astimezone()
+        if upgrades:
+            upgraded = datetime.fromisoformat(upgrades[-1][1:].split("]")[0])
+        read = {key for key, (date, text) in posts.items() if date < upgraded}
+        save_acknowledged(acknowledged() | read)
     refresh("news", {key: text for key, (date, text) in posts.items()})
 
 
-def questions(output):
-    """refreshes the notice of the questions pacman asked in the dry run, whose output is in the file
-    output, if there was one. acknowledging the notice has the next run answer them."""
-    asked = asked_in(Path(output).read_text(errors="replace")) if os.path.exists(output) else []
+def questions():
+    """refreshes the notice of the questions pacman asked in the run's dry run, if there was one.
+    acknowledging the notice has the next run answer them."""
+    output = Path(os.environ["UPGRADE_RUN"]) / "dryrun.out"
+    asked = asked_in(output.read_text(errors="replace")) if output.exists() else []
     key = "questions-" + hashlib.sha256("\n".join(asked).encode()).hexdigest()[:16]
     text = (
         "pacman has questions for the upgrade, which wait for you since noconfirm is off\n\n"
         + indent(asked)
-        + "\nAnswer them yourself with pacman -Syu, or run sudo upgrade ack to have the next run answer\n"
-        + "them with their defaults, the capital letter or 1.\n"
+        + "\nAnswer them yourself with pacman -Syu, or run sudo upgrade ack to have the next run\n"
+        + "answer them with their defaults, the capital letter or 1.\n"
     )
     refresh("questions", {key: text} if asked else {})
 
@@ -151,7 +157,8 @@ def script_output(run):
     output, package, shown = [], None, None
     for line in lines:
         message = re.sub(r"^\[[^]]*\] ", "", line)
-        if match := re.match(r"\[ALPM\] (?:installed|upgraded|reinstalled|downgraded|removed) (.*)", message):
+        changed = r"\[ALPM\] (?:installed|upgraded|reinstalled|downgraded|removed) (.*)"
+        if match := re.match(changed, message):
             package = match[1]
         elif message.startswith("[ALPM] running '"):
             package = None
@@ -164,9 +171,9 @@ def script_output(run):
 
 
 def transactions(output):
-    """each pacman -Syu in the run's output that went ahead with its transaction, as (what it printed
-    before proceeding, what it printed after). what comes before is printed again by every run until
-    it's dealt with, such as IgnorePkg's warnings, so only questions are taken from it."""
+    """each pacman -Syu in the run's output that went ahead with its transaction, as (what it
+    printed before proceeding, what it printed after). what comes before is printed again by every
+    run until it's dealt with, such as IgnorePkg's warnings, so only questions are taken from it."""
     for run in re.split(r"^:: Synchronizing package databases\.\.\.$", output, flags=re.M):
         if ":: Proceed with installation? [Y/n]" in run:
             yield run.split(":: Proceed with installation? [Y/n]", 1)
@@ -181,7 +188,8 @@ def asked_in(text):
 
 def run_event(run):
     """a notice of what the run printed for the admin to read, if anything"""
-    output = (run / "pacman.out").read_text(errors="replace") if (run / "pacman.out").exists() else ""
+    out = run / "pacman.out"
+    output = out.read_text(errors="replace") if out.exists() else ""
     asked, optional, warned = [], [], []
     for before, after in transactions(output):
         asked += asked_in(before)
@@ -196,7 +204,8 @@ def run_event(run):
     if scripts := script_output(run):
         sections.append("Install scripts printed:\n" + indent(scripts))
     if asked:
-        sections.append("pacman answered these itself, with the default, the capital letter or 1:\n" + indent(asked))
+        answered = "pacman answered these itself, with the default, the capital letter or 1:\n"
+        sections.append(answered + indent(asked))
     if optional:
         sections.append("".join(optional))
     if warned:
@@ -207,9 +216,10 @@ def run_event(run):
 
 
 def pacnew():
-    """refreshes the notices of pacnew, pacsave and pacorig files. a new file with other contents is a
-    new notice, even if the old one was acknowledged."""
-    paths = subprocess.run(["pacdiff", "-o"], stdout=subprocess.PIPE, text=True).stdout.splitlines()
+    """refreshes the notices of pacnew, pacsave and pacorig files. a new file with other contents is
+    a new notice, even if the old one was acknowledged."""
+    pacdiff = subprocess.run(["pacdiff", "-o"], stdout=subprocess.PIPE, text=True)
+    paths = pacdiff.stdout.splitlines()
     refresh("pacnew", {
         "pacnew-" + hashlib.sha256(path.encode() + Path(path).read_bytes()).hexdigest()[:16]:
             f"{path} is waiting to be merged or deleted\n"
@@ -219,20 +229,25 @@ def pacnew():
 
 def failures(run):
     """refreshes the notices of failed steps. a run that ended early adds one, and one that finished
-    keeps only those that failed this time. a blocked run skipped most steps, so it changes nothing."""
+    keeps only those that failed this time. a blocked run skipped most steps, so it changes
+    nothing."""
     if (run / "blocked").exists():
         return
     now = time.strftime("%Y-%m-%d %H:%M")
+    invocation = f"_SYSTEMD_INVOCATION_ID={os.environ.get('INVOCATION_ID', '')}"
     journal = subprocess.run(
-        ["journalctl", f"_SYSTEMD_INVOCATION_ID={os.environ.get('INVOCATION_ID', '')}", "-o", "cat", "-n", "20"],
-        stdout=subprocess.PIPE, text=True,
-    ).stdout
-    details = f"\nThe end of its log, see journalctl -u upgrade for all of it:\n{indent(journal.splitlines())}"
+        ["journalctl", invocation, "-o", "cat", "-n", "20"], stdout=subprocess.PIPE, text=True
+    )
+    details = "\nThe end of its log, see journalctl -u upgrade for all of it:\n"
+    details += indent(journal.stdout.splitlines())
     if not (run / "finished").exists():
         write("failed-run", f"The upgrade at {now} stopped with an error\n" + details)
     else:
         steps = (run / "failed").read_text().splitlines() if (run / "failed").exists() else []
-        refresh("failed", {f"failed-{slug(step)}": f"{step} failed in the upgrade at {now}\n" + details for step in steps})
+        refresh("failed", {
+            f"failed-{slug(step)}": f"{step} failed in the upgrade at {now}\n" + details
+            for step in steps
+        })
 
 
 def publish(enabled, realtime=True):
@@ -243,8 +258,12 @@ def publish(enabled, realtime=True):
     blocked = blocked_by(enabled)
     count = "1 notice needs" if len(current) == 1 else f"{len(current)} notices need"
     headline = f"upgrade: {'upgrades are blocked, and ' * bool(blocked)}{count} your attention"
-    lines = headline + ":\n" + indent(titles) + "See them with upgrade status, and once they're handled, run sudo upgrade ack.\n"
-    for channel, path, text in [("shell", SUMMARY, headline + ", see upgrade status.\n"), ("motd", MOTD, lines)]:
+    lines = headline + ":\n" + indent(titles)
+    lines += "See them with upgrade status, and once they're handled, run sudo upgrade ack.\n"
+    for channel, path, text in [
+        ("shell", SUMMARY, headline + ", see upgrade status.\n"),
+        ("motd", MOTD, lines),
+    ]:
         if current and f"notifications:{channel}" in enabled:
             path.write_text(text)
         else:
@@ -252,8 +271,9 @@ def publish(enabled, realtime=True):
 
     published = PUBLISHED.read_text().split() if PUBLISHED.exists() else ["0"]
     sent = float(published[0])
+    new = set(current) - set(published[1:])
     # while upgrades are blocked, a reminder once a day, since security updates are piling up
-    if realtime and (set(current) - set(published[1:]) or blocked and time.time() - sent > 24 * 60 * 60):
+    if realtime and (new or blocked and time.time() - sent > 24 * 60 * 60):
         if "notifications:wall" in enabled:
             subprocess.run(["wall", lines])
         if "notifications:desktop" in enabled:
@@ -272,17 +292,18 @@ def desktop(title, body):
         user = pwd.getpwuid(uid)
         groups = {grp.getgrgid(gid).gr_name for gid in os.getgrouplist(user.pw_name, user.pw_gid)}
         if uid == 0 or groups & {"wheel", "upgraders"}:
+            as_user = ["setpriv", f"--reuid={uid}", f"--regid={user.pw_gid}", "--init-groups"]
+            bus = f"DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/{uid}/bus"
+            notify = ["notify-send", "--app-name=upgrade", title, body]
             subprocess.run(
-                ["timeout", "10", "setpriv", f"--reuid={uid}", f"--regid={user.pw_gid}", "--init-groups",
-                 "env", f"DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/{uid}/bus",
-                 "notify-send", "--app-name=upgrade", title, body],
+                ["timeout", "10", *as_user, "env", bus, *notify],
                 stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
             )
 
 
 def after():
-    """records what the run left for the admin, and tells them. the upgrade worker runs this when the
-    run ends, however it ends."""
+    """records what the run left for the admin, and tells them. the upgrade worker runs this when
+    the run ends, however it ends."""
     run = Path(os.environ["UPGRADE_RUN"])
     run_event(run)
     pacnew()
@@ -294,12 +315,15 @@ def status():
     current = notices()
     for text in current.values():
         print(text)
-    print("Once these are handled, run sudo upgrade ack." if current else "Nothing needs your attention.")
+    if current:
+        print("Once these are handled, run sudo upgrade ack.")
+    else:
+        print("Nothing needs your attention.")
 
 
 def ack():
-    """shows every notice, then acknowledges them, while holding the upgrade lock, so no run adds one
-    in between"""
+    """shows every notice, then acknowledges them, while holding the upgrade lock, so no run adds
+    one in between"""
     current = notices()
     for text in current.values():
         print(text)
@@ -320,17 +344,18 @@ def main():
     os.umask(0o022)
     parser = argparse.ArgumentParser(description=__doc__)
     commands = parser.add_subparsers(dest="command", required=True)
-    commands.add_parser("news", help="refresh the notices of Arch Linux news. the upgrade worker runs this.")
-    commands.add_parser("questions", help="refresh the notice of the dry run's questions. the upgrade worker runs this.").add_argument("output")
+    # news, questions, blocking and after are run by the upgrade worker
+    commands.add_parser("news", help="refresh the notices of Arch Linux news")
+    commands.add_parser("questions", help="refresh the notice of the dry run's questions")
     commands.add_parser("blocking", help="say what blocks upgrades, or exit 1 if nothing does")
+    commands.add_parser("after", help="record what the run left, and notify")
     commands.add_parser("status", help="show every notice")
     commands.add_parser("ack", help="show every notice, then acknowledge them. root only.")
-    commands.add_parser("after", help="record what the run left, and notify. the upgrade worker runs this.")
-    args = parser.parse_args()
-    if args.command == "questions":
-        questions(args.output)
-    else:
-        {"news": news, "blocking": blocking, "status": status, "ack": ack, "after": after}[args.command]()
+    functions = {
+        "news": news, "questions": questions, "blocking": blocking,
+        "after": after, "status": status, "ack": ack,
+    }
+    functions[parser.parse_args().command]()
 
 
 if __name__ == "__main__":
