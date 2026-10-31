@@ -15,6 +15,7 @@ import re
 import subprocess
 import sys
 import time
+import tomllib
 import urllib.request
 from datetime import datetime
 from email.utils import parsedate_to_datetime
@@ -157,9 +158,12 @@ def ack():
 
 
 def config():
-    return subprocess.run(
-        ["/usr/lib/upgrade/config"], stdout=subprocess.PIPE, text=True, check=True
-    ).stdout.split()
+    """the options in /etc/upgrade.toml, over their defaults. lib/config checks them at the start of
+    every run."""
+    options = tomllib.load(open("/usr/lib/upgrade/defaults.toml", "rb"))
+    if os.path.exists("/etc/upgrade.toml"):
+        options |= tomllib.load(open("/etc/upgrade.toml", "rb"))
+    return options
 
 
 def notices():
@@ -211,13 +215,14 @@ def pacman_log():
     return log.stdout.strip()
 
 
-def blocked_by(enabled):
+def blocked_by(options):
     """the titles of the notices that block upgrades: pacman's questions, and news when
     block_on_news is on"""
     return [
         text.split("\n", 1)[0]
         for key, text in notices().items()
-        if key.startswith("questions-") or key.startswith("news-") and "block_on_news" in enabled
+        if key.startswith("questions-")
+        or key.startswith("news-") and options["block_on_news"] in (True, "true")
     ]
 
 
@@ -337,19 +342,19 @@ def failures(run):
         )
 
 
-def publish(enabled, realtime=True):
+def publish(options, realtime=True):
     """writes the summary for shells and the motd, and when a notice is new, sends the realtime
     notifications"""
     current = notices()
     titles = [text.split("\n", 1)[0] for text in current.values()]
-    blocked = blocked_by(enabled)
+    blocked = blocked_by(options)
     count = "1 notice needs" if len(current) == 1 else f"{len(current)} notices need"
     headline = f"upgrade: {'upgrades are blocked, and ' * bool(blocked)}{count} your attention"
     line = headline + ", see upgrade status.\n"
     lines = headline + ":\n" + indent(titles)
     lines += "See them with upgrade status, and once they're handled, run sudo upgrade ack.\n"
     for channel, path, text in [("shell", SUMMARY, line), ("motd", MOTD, lines)]:
-        if current and f"notifications:{channel}" in enabled:
+        if current and channel in options["notifications"]:
             path.write_text(text)
         else:
             path.unlink(missing_ok=True)
@@ -359,9 +364,9 @@ def publish(enabled, realtime=True):
     new = set(current) - set(published[1:])
     # while upgrades are blocked, a reminder once a day, since security updates are piling up
     if realtime and (new or blocked and time.time() - sent > 24 * 60 * 60):
-        if "notifications:wall" in enabled:
+        if "wall" in options["notifications"]:
             subprocess.run(["wall", line])
-        if "notifications:desktop" in enabled:
+        if "desktop" in options["notifications"]:
             desktop(headline, indent(titles))
         sent = time.time()
     PUBLISHED.write_text(f"{sent}\n" + "".join(key + "\n" for key in current))
