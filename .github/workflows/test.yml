@@ -1,5 +1,5 @@
 # runs the end-to-end test, test/run, which boots an arch vm in qemu: on every push to master and
-# every pull request, and by hand from the actions tab
+# every pull request, by hand from the actions tab, and from aur.yml before a release is published
 name: Test
 
 on:
@@ -7,6 +7,7 @@ on:
     branches: [master]
   pull_request:
   workflow_dispatch:
+  workflow_call:
 
 jobs:
   test:
