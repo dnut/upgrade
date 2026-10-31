@@ -17,18 +17,18 @@ upgrade
 systemctl enable --now upgrade.timer
 ```
 
-`upgrade` will then run automatically every hour and 15 minutes after boot, so you no longer need to run routine manual upgrades.
+`upgrade` will then run automatically every hour and 15 minutes after boot, so you no longer need to run routine manual upgrades. The scheduled runs are skipped while the system is on battery, or on a connection that NetworkManager says is metered.
 
 Please read the [Risks](#risks) section below to understand why this functionality is not built-in to the system already, and why I have created it.
 
 If you choose to enable AUR upgrades, `upgrade` will use either yay or paru under the hood, depending on what you have installed. It prefers yay if both are installed, since paru has a recent history of breakages that prevented upgrades and were not fixed for several months.
 
-If there are conflicts or other problems that make it impossible to update automatically, you will need to manually resolve them. There will also inevitably be messages printed by pacman, such as notifications about pacnew/pacsave files and other announcements from packages, that typically require administrative maintenance after upgrades. So it's a good idea to occasionally check `journalctl -u upgrade` for any of this.
+If there are conflicts or other problems that make it impossible to update automatically, you will need to manually resolve them. There will also inevitably be things that need administrative maintenance after upgrades, such as pacnew files, messages from packages and Arch Linux news. `upgrade` keeps track of them and tells you about them, see [Notices](#notices).
 
 ## Running it yourself
 
 There are three commands available to users:
-- `upgrade`: Runs the full system upgrade workflow, upgrading all packages in accordance with the configuration.
+- `upgrade`: Runs the full system upgrade workflow, upgrading all packages in accordance with the configuration. `upgrade status` shows the [notices](#notices) of what runs left for you, and root acknowledges them with `upgrade ack`.
 - `autoremove`: Removes orphaned packages. By default it runs conservatively, but root can pass options for a more thorough pruning. See [Removing orphaned packages](#removing-orphaned-packages).
 - `clearpkgcache`: Prunes pacman's package cache and clears the build caches of AUR helpers.
 
@@ -70,8 +70,11 @@ Create this file to customize the behavior away from the defaults. It does not e
 - `upgrade_flatpak`: Defaults to true. Upgrades system-wide flatpak packages when true.
 - `clean_cache_on_success`: Defaults to true. When enabled, `upgrade` runs `clearpkgcache` at the end of a run where nothing failed. Set to false if you would like to keep every package in the cache indefinitely. `clearpkgcache` keeps the two most recent versions of each installed package and the most recent version of each uninstalled package, so you can still roll back a bad update or reinstall a removed package. It also deletes the AUR build files that yay, paru and the self-update leave in `/var/lib/aur-upgrader/.cache`.
 - `autoremove`: Defaults to true. When enabled, `upgrade` runs `autoremove --noconfirm` after each upgrade, to remove orphaned packages. Orphans are dependencies that are no longer required or optionally required by any installed package. Any of their configuration files that you modified are kept as `.pacsave` files. See [Removing orphaned packages](#removing-orphaned-packages).
+- `noconfirm`: Defaults to true. pacman answers its own questions with their defaults, such as whether to replace one package with another, and the run's notice lists them. Set to false to have upgrades wait for you to answer them instead. See [Notices](#notices).
+- `block_on_news`: Defaults to true. Stops upgrading packages while there's Arch Linux news you haven't acknowledged with `upgrade ack`.
+- `notifications`: Defaults to `["motd", "shell", "wall", "desktop"]`. The ways you're told about notices, see [Notices](#notices). `[]` turns them all off.
 
-Any value other than `true` turns an option off, and `upgrade` stops with an error if the file isn't valid TOML.
+Any value other than `true` turns an option off, `notifications` can only list those four, and `upgrade` stops with an error if the file isn't valid TOML.
 
 ### /etc/group
 
@@ -89,6 +92,27 @@ When root runs `autoremove`, it runs directly in root's shell, has pacman show t
 - `--noconfirm`: Remove the packages without asking.
 - `--dry-run`: Only print the commands that would be run.
 
+## Notices
+
+Each run records what it leaves for you to read or handle, as notices:
+- Arch Linux news posts.
+- pacman's questions, such as whether to replace one package with another.
+- `.pacnew`, `.pacsave` and `.pacorig` files waiting to be merged.
+- What install scripts printed, new optional dependencies, and pacman's warnings and errors during the upgrade.
+- Steps that failed, and runs that stopped with an error.
+
+`upgrade status` shows them, and root acknowledges them with `upgrade ack`, which shows them again as it clears them. Notices of things that `upgrade` can check again, such as pacnew files and failing steps, also clear by themselves once they're handled. An acknowledged one stays quiet until it changes, for example when a new `.pacnew` file arrives.
+
+Some notices block upgrades until they're acknowledged: Arch Linux news, unless `block_on_news = false`, and pacman's questions when `noconfirm = false`. With `noconfirm = false`, each run first asks pacman for its questions in a dry run, and if there are any, changes nothing until you answer them by running `pacman -Syu` yourself, or acknowledge them, so that the next run answers them with the defaults. While upgrades are blocked, nothing goes through pacman: not the system upgrade, the AUR packages, `upgrade`'s self-update or autoremove. flatpak packages still upgrade. Blocked runs fail, so `systemctl status upgrade` shows it too.
+
+You're told about notices in the ways that `notifications` in /etc/upgrade.toml lists, all of them by default:
+- `motd`: at console and SSH logins, through pam_motd. Everyone who logs in sees it.
+- `shell`: a one-line summary in the login shells of root, `wheel` and `upgraders`, and in all their interactive fish shells. To see it in every bash or zsh, add `. /etc/profile.d/upgrade.sh` to your `~/.bashrc` or `~/.zshrc`.
+- `wall`: a message on the terminals of everyone logged in.
+- `desktop`: a desktop notification for root, `wheel` and `upgraders`, if libnotify is installed.
+
+`wall` and `desktop` only send when a run finds something new, and once a day while upgrades are blocked.
+
 ## Risks
 
 System upgrades may require manual intervention to ensure everything is working as you intended. For example:
@@ -96,6 +120,8 @@ System upgrades may require manual intervention to ensure everything is working 
 - if you changed a config file that the new version also changes, pacman keeps yours and saves the new one next to it as a `.pacnew` file, for you to merge
 - packages themselves may choose to print messages for the administrator to act on to deal with the upgrade
 - some upgrades need manual steps that are only announced in the [Arch Linux news](https://archlinux.org/news/), which pacman doesn't show at all
+
+`upgrade` tells you about each of these, and can stop for pacman's questions and the news, see [Notices](#notices).
 
 Some users consider it a best practice to execute all upgrades manually so the administrator can deal with these things during the upgrade.
 
@@ -106,6 +132,8 @@ Before using this package, you must ask yourself:
 If you answer "yes" to both questions, then it may be reasonable for you to fully automate your upgrades. If you only answer "yes" to the first question, you may still find `upgrade` useful for streaminling your manual upgrade process.
 
 Personally, I consider it a bigger risk to use outdated software than it is to automate upgrades. Security vulnerabilities may be exploited within hours of their publication.
+
+If an upgrade does break something, you can downgrade to an older version from pacman's cache, where `clearpkgcache` keeps the two most recent versions of each package. Snapshot tools such as snap-pac also take a snapshot of your filesystem on every pacman run, including the scheduled ones.
 
 After well over a decade of using arch linux as my primary operating system, I realized that I always, without exception, use the default answers suggested by the package manager. `--noconfirm` is the obvious choice to execute the same steps that I was already executing manually. And if you're already running it with `--noconfirm`, then it actually makes zero difference on the outcome of the upgrade whether you trigger it manually or automatically on a schedule. Hence this tool was born.
 

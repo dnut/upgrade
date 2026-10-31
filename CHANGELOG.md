@@ -1,3 +1,15 @@
+# 0.5.0
+
+`upgrade` now tells you what unattended upgrades leave for you to handle, and can stop for the decisions you'd make in an interactive upgrade.
+
+- **Notices**: each run records what needs your attention: Arch Linux news, pacman's questions, `.pacnew` files, what install scripts printed, pacman's warnings and errors, and failures. `upgrade status` shows them, and root acknowledges them with `upgrade ack`.
+  - You're told about them in the motd, in admins' shells, with wall and with desktop notifications. `notifications` chooses which.
+- **Unread Arch Linux news blocks upgrades** until it's acknowledged. Set `block_on_news = false` to only be told about it.
+- **`noconfirm = false`** makes upgrades wait for you to answer pacman's questions, instead of answering them with the defaults.
+- While upgrades are blocked, only flatpak packages upgrade.
+- Scheduled runs are skipped on battery or a metered connection.
+- Installing or upgrading starts polkit's password socket, which installing polkit only started at the next boot.
+
 # 0.4.0
 
 This release makes `upgrade` safer. It hardens the permission model and uses lower-risk defaults for its automation. It also adds a new `autoremove` capability to clean up orphans.
