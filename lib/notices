@@ -4,7 +4,8 @@
 # notices are files in /var/lib/upgrade/notices: a one-line title, then the details. events, named
 # run-*, are what one run printed, and acknowledging deletes them. conditions are checked again on
 # every run. acknowledging one silences its key while the condition holds, and once it's gone, the
-# key is forgotten too, so the condition is new if it comes back.
+# key is forgotten too, so the condition is new if it comes back. pacnew files can't be
+# acknowledged: their notices last as long as pacdiff lists them.
 
 import argparse
 import hashlib
@@ -122,7 +123,7 @@ def after():
     failures(run)
     # whoever starts a run by hand sees the notices at the end of its output, so only the timer's
     # runs, which nobody is watching, send the realtime notifications
-    publish(config(), realtime=os.environ.get("TRIGGER_UNIT") == "upgrade.timer")
+    print(publish(config(), realtime=os.environ.get("TRIGGER_UNIT") == "upgrade.timer"), end="")
 
 
 def status():
@@ -137,18 +138,23 @@ def status():
 
 def ack():
     """shows every notice, then acknowledges them, while holding the upgrade lock, so no run adds
-    one in between"""
+    one in between. pacnew files are checked again first, so the ones merged since the last run are
+    gone, and the rest stay."""
+    pacnew()
     current = notices()
     for text in current.values():
         print(text)
     keys = acknowledged()
-    for key in current:
+    acked = [key for key in current if not key.startswith("pacnew-")]
+    for key in acked:
         if not key.startswith("run-"):
             keys.add(key)
         (NOTICES / key).unlink()
     save_acknowledged(keys)
     publish(config(), realtime=False)
-    print(f"Acknowledged {len(current)} notice{'s' * (len(current) != 1)}.")
+    print(f"Acknowledged {len(acked)} notice{'s' * (len(acked) != 1)}.")
+    if len(acked) < len(current):
+        print("pacnew files stay listed until they're merged or deleted, see pacdiff.")
     if any(key.startswith("questions-") for key in current):
         print("The next run answers pacman's questions with their defaults.")
 
@@ -299,8 +305,8 @@ def run_event(run):
 
 
 def pacnew():
-    """refreshes the notices of pacnew, pacsave and pacorig files. a new file with other contents is
-    a new notice, even if the old one was acknowledged."""
+    """refreshes the notices of the pacnew, pacsave and pacorig files that pacdiff lists. a new
+    file with other contents is a new notice, so the realtime notifications go out for it."""
     pacdiff = subprocess.run(["pacdiff", "-o"], stdout=subprocess.PIPE, text=True)
     paths = pacdiff.stdout.splitlines()
     refresh(
@@ -343,7 +349,7 @@ def failures(run):
 
 def publish(options, realtime=True):
     """writes the summary for shells and the motd, and when a notice is new, sends the realtime
-    notifications"""
+    notifications. returns the list of notices for the end of a run's output."""
     current = notices()
     titles = [text.split("\n", 1)[0] for text in current.values()]
     blocked = blocked_by(options)
@@ -367,9 +373,10 @@ def publish(options, realtime=True):
             desktop(headline, indent(titles))
         sent = time.time()
     PUBLISHED.write_text(f"{sent}\n" + "".join(key + "\n" for key in current))
-    if current:
-        print(headline + ":\n" + indent(titles), end="")
-        print("See them with upgrade status, and once they're handled, run sudo upgrade ack.")
+    if not current:
+        return ""
+    hint = "See them with upgrade status, and once they're handled, run sudo upgrade ack.\n"
+    return headline + ":\n" + indent(titles) + hint
 
 
 def desktop(title, body):
