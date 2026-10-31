@@ -1,0 +1,382 @@
+#!/usr/bin/bash
+# the end-to-end checks, run as root inside the vm that test/run boots. builds the package from the
+# checkout in /srv/test-src, installs it, then checks it. prints PASS or FAIL for each check, and
+# exits 1 if any failed.
+set -euo pipefail
+# set -e stops the checks at a failing command outside a check, so say so rather than just ending
+trap '[[ $? == 0 || -n ${finished:-} ]] || echo "STOPPED at the error above, before all the checks ran."' EXIT
+failures=0
+
+# check NAME COMMAND...: passes if the command succeeds
+check() { local name=$1; shift
+    if "$@"; then
+        echo "PASS $name"
+    else
+        echo "FAIL $name"
+        failures=$((failures + 1))
+    fi
+}
+not() { ! "$@"; }
+
+# as USER COMMAND...: runs a command as a user, with no terminal, so polkit can't ask for a password.
+# ssh -t gives the checks one, and systemctl asks on it even when stdin isn't, so setsid leaves it.
+as() { local user=$1; shift
+    setsid -w runuser -u "$user" -- "$@" </dev/null
+}
+
+# run USER COMMAND...: runs a command as a user, keeping its output in $output and its status in $status
+run() {
+    status=0
+    output=$(as "$@" 2>&1) || status=$?
+}
+
+# expect NAME ok|failed: checks how the last run ended, and shows its output if that's wrong
+expect() { local name=$1 want=$2
+    if [[ $want == ok && $status == 0 || $want == failed && $status != 0 ]]; then
+        echo "PASS $name"
+    else
+        echo "FAIL $name (exit $status)"
+        sed 's/^/    /' <<<"$output"
+        failures=$((failures + 1))
+    fi
+}
+
+# saw TEXT: whether the last run's output has the text
+saw() { grep -qF -- "$1" <<<"$output"; }
+
+# has_notice PREFIX: whether there's a notice whose key starts with PREFIX
+has_notice() { ls /var/lib/upgrade/notices | grep -q "^$1"; }
+# notices_say TEXT: whether a notice has the text
+notices_say() { grep -rqF -- "$1" /var/lib/upgrade/notices; }
+
+# test_package NAME VERSION [PKGBUILD LINES...]: builds an empty package as builder, and puts it in
+# the test repo
+test_package() { local name=$1 version=$2; shift 2
+    mkdir -p "/home/builder/$name"
+    printf '%s\n' "pkgname=$name" "pkgver=$version" pkgrel=1 'arch=(any)' "$@" 'package() { :; }' \
+        >"/home/builder/$name/PKGBUILD"
+    chown -R builder "/home/builder/$name"
+    (cd "/home/builder/$name" && runuser -u builder -- makepkg --noconfirm --force >/dev/null)
+    cp "/home/builder/$name/$name-$version-1-any.pkg.tar.zst" /srv/test-repo/
+    repo-add -q /srv/test-repo/test.db.tar.gz "/srv/test-repo/$name-$version-1-any.pkg.tar.zst"
+}
+
+# AUR packages are cloned and built as builder, since makepkg refuses to run as root
+aur_clone() { runuser -u builder -- git clone -q "https://aur.archlinux.org/$1.git" "/home/builder/$1"; }
+aur_git() { local name=$1; shift
+    runuser -u builder -- git -C "/home/builder/$name" "$@"
+}
+aur_install() { local name=$1
+    (cd "/home/builder/$name" && runuser -u builder -- makepkg --noconfirm)
+    pacman -U --noconfirm "/home/builder/$name/$name"-[0-9]*.pkg.tar.zst
+}
+
+echo '== Installing upgrade'
+# the cloud image is minimal. updating everything now also leaves the first run's pacman -Syu with
+# little to do.
+pacman -Syu --noconfirm --needed base-devel git
+useradd -m builder
+# ./makepkg builds the checkout, as builder, since makepkg refuses to run as root
+cp -r /srv/test-src /home/builder/upgrade
+chown -R builder /home/builder/upgrade
+(cd /home/builder/upgrade && runuser -u builder -- ./makepkg --nodeps >/dev/null)
+# not in /root, since pacman downloads as the alpm user, even from a file:// repo
+mkdir /srv/test-repo
+cp /home/builder/upgrade/dist/upgrade-*.pkg.tar.zst /srv/test-repo/
+expected=$(pacman -Qp /srv/test-repo/upgrade-*.pkg.tar.zst)
+repo-add -q /srv/test-repo/test.db.tar.gz /srv/test-repo/upgrade-*.pkg.tar.zst
+printf '\n[test]\nSigLevel = Optional TrustAll\nServer = file:///srv/test-repo\n' >>/etc/pacman.conf
+installed=$(pacman -Sy --noconfirm upgrade 2>&1)
+# the checks build AUR packages, which are only upgraded with upgrade_aur on
+echo 'upgrade_aur = true' >/etc/upgrade.toml
+
+# yay-bin one version behind the AUR's, so the first run has an AUR package to build
+aur_clone yay-bin
+srcinfo_version() { grep -E '^\s*pkg(ver|rel) = ' /home/builder/yay-bin/.SRCINFO; }
+latest=$(srcinfo_version)
+until [[ $(srcinfo_version) != "$latest" ]]; do aur_git yay-bin checkout -q HEAD~1; done
+aur_install yay-bin
+
+useradd -m -G upgraders,wheel alice
+useradd -m -G wheel bob
+echo bob:test | chpasswd
+useradd -m -G upgraders carol
+useradd -m dave
+
+check "post_install started polkit's password socket" systemctl is-active -q polkit-agent-helper.socket
+check "and says how to turn on automatic upgrades" grep -qF 'systemctl enable --now upgrade.timer' <<<"$installed"
+check "pacman didn't warn about the package's folders" \
+    not grep -qE 'permissions differ|ownership differs' <<<"$installed"
+check "pacman finds nothing wrong with the package's files" pacman -Qkk upgrade
+check "aur-upgrader exists, with its home in /var/lib and no shell" \
+    test "$(getent passwd aur-upgrader | cut -d: -f6-)" = /var/lib/aur-upgrader:/usr/bin/nologin
+check "aur-upgrader's home is private" test "$(stat -c %a:%U /var/lib/aur-upgrader)" = 700:aur-upgrader
+
+yay_before=$(pacman -Q yay-bin)
+run root upgrade
+expect "the first run succeeds" ok
+# makepkg refuses to run as root, so this also shows the build ran as aur-upgrader
+check "it built the new yay-bin" test "$(pacman -Q yay-bin)" != "$yay_before"
+check "its self-upgrade didn't replace this version with the AUR's, which isn't newer" \
+    test "$(pacman -Q upgrade)" = "$expected"
+check "the lock is root's alone" test "$(stat -c %a:%U /run/upgrade.lock)" = 600:root
+
+echo '== Who can start what'
+run alice upgrade
+expect "alice, in upgraders and wheel, can upgrade" ok
+check "and sees the output, since wheel can read the journal" saw 'Upgrading the system with pacman.'
+run carol clearpkgcache
+expect "carol, in upgraders, can clear the cache" ok
+run dave upgrade
+expect "dave, in no groups, can't upgrade" failed
+run bob upgrade
+expect "bob, in wheel, can't upgrade without a terminal to type his password" failed
+for verb in stop restart kill; do
+    run carol systemctl "$verb" upgrade.service
+    expect "carol can't $verb upgrade.service" failed
+done
+run carol systemctl start systemd-tmpfiles-clean.service
+expect "carol can't start other services" failed
+run carol systemd-run --unit=clearpkgcache.service true
+expect "carol can't run her own command as one of the services" failed
+
+echo '== Joining a run, the lock, the inhibitor and isolation'
+cat >/usr/local/lib/test-slow <<'EOF'
+#!/bin/sh
+echo first line
+echo "limit $(ulimit -n) env ${EVIL:-clean}"
+# more lines at once than journald's default rate limit lets through
+seq 100000
+sleep 8
+echo last line
+EOF
+chmod 755 /usr/local/lib/test-slow
+# upgrade.service's own ExecStart, with the lock and the inhibitor, but running test-slow
+mkdir -p /etc/systemd/system/upgrade.service.d
+{
+    echo '[Service]'
+    echo 'ExecStart='
+    sed -n 's|^\(ExecStart=.*\)/usr/lib/upgrade/upgrade$|\1/usr/local/lib/test-slow|p' \
+        /usr/lib/systemd/system/upgrade.service
+} >/etc/systemd/system/upgrade.service.d/test-slow.conf
+systemctl daemon-reload
+
+as alice upgrade >/tmp/first 2>&1 &
+first=$!
+sleep 2
+inhibitors=$(systemd-inhibit --list --no-legend)
+as root clearpkgcache >/tmp/cache 2>&1 &
+cache=$!
+run alice upgrade
+expect "a second upgrade joins the running one" ok
+check "it says it's following the running one" saw 'already running, following it.'
+check "and shows the run from its start" saw 'first line'
+check "to its end" saw 'last line'
+check "with none of a long run's output dropped by journald" test "$(grep -cxE '[0-9]+' <<<"$output")" = 100000
+first_status=0
+wait "$first" || first_status=$?
+check "the first upgrade succeeds too" test "$first_status" = 0
+check "the run blocks shutdown" grep -qF 'Upgrading packages' <<<"$inhibitors"
+cache_status=0
+wait "$cache" || cache_status=$?
+check "clearpkgcache, started during the run, waits for the lock" grep -qF 'Waiting for another' /tmp/cache
+check "and then succeeds" test "$cache_status" = 0
+# ctrl-c in a terminal sends SIGINT to the command's process group: upgrade's run-oneshot script,
+# and the journalctl and systemctl it started. setsid makes that group here, and runuser isn't part
+# of it. commands started in the background ignore SIGINT, which env undoes.
+setsid -w runuser -u alice -- env --default-signal=INT upgrade </dev/null >/tmp/stopped 2>&1 &
+stopped=$!
+sleep 2
+pkill -INT -u alice -g "$stopped"
+wait "$stopped" || true
+check "ctrl-c stops following the run" grep -qF 'Stopped following upgrade.service, but it keeps running.' /tmp/stopped
+check "but the run keeps going" test "$(systemctl show -P ActiveState upgrade.service)" = activating
+while [[ $(systemctl show -P ActiveState upgrade.service) == activating ]]; do sleep 1; done
+check "to its end" test "$(systemctl show -P Result upgrade.service)" = success
+run alice bash -c 'ulimit -n 64 && EVIL=1 exec upgrade'
+expect "upgrade with a changed environment and limits" ok
+check "the run doesn't get the caller's environment" saw 'env clean'
+check "or limits" not saw 'limit 64 '
+
+rm -r /etc/systemd/system/upgrade.service.d /usr/local/lib/test-slow
+systemctl daemon-reload
+
+echo '== autoremove'
+pacman -S --noconfirm --asdeps sl
+run carol autoremove --noconfirm
+expect "carol's autoremove with options runs as her, so it can't remove" failed
+check "and tells her to run it without options" saw 'Without options, autoremove removes them'
+check "so the orphan is still there" pacman -Qq sl
+run carol autoremove --dry-run
+expect "but she can do a dry run" ok
+check "which lists the orphan" grep -qw sl <<<"$output"
+run carol autoremove --help
+expect "and see the options" ok
+run carol autoremove
+expect "carol's autoremove without options starts autoremove.service" ok
+check "which removes the orphan" not pacman -Qq sl 2>/dev/null
+
+echo '== clearpkgcache'
+# a build folder made read-only, like the ones go builds leave, which rm alone can't empty
+runuser -u aur-upgrader -- mkdir -p /var/lib/aur-upgrader/.cache/yay/pkg/src/go/mod
+runuser -u aur-upgrader -- touch /var/lib/aur-upgrader/.cache/yay/pkg/src/go/mod/file
+runuser -u aur-upgrader -- chmod -R a-w /var/lib/aur-upgrader/.cache/yay/pkg/src/go
+run root clearpkgcache
+expect "clearpkgcache succeeds" ok
+check "and deletes aur-upgrader's cache, read-only folders and all" test ! -e /var/lib/aur-upgrader/.cache
+run root clearpkgcache
+expect "and again, with nothing left to remove" ok
+# a symlink in aur-upgrader's home, where clearpkgcache deletes the cache, must not lead it into
+# folders that aur-upgrader can't change
+mkdir -p /etc/test-canary
+touch /etc/test-canary/file
+ln -s /etc/test-canary /var/lib/aur-upgrader/.cache
+run root clearpkgcache
+check "clearpkgcache doesn't follow a symlink planted in aur-upgrader's home" test -e /etc/test-canary/file
+rm -rf /etc/test-canary /var/lib/aur-upgrader/.cache
+
+echo '== Config'
+mv /etc/upgrade.toml /etc/upgrade.toml.test
+run root upgrade
+expect "with no /etc/upgrade.toml, upgrade uses the defaults" ok
+check "which leave AUR upgrades off" not saw 'Upgrading AUR packages'
+echo 'upgrade_aur = yes' >/etc/upgrade.toml
+run root upgrade
+expect "an invalid upgrade.toml stops the run" failed
+check "before pacman" not saw 'Upgrading the system with pacman.'
+mv /etc/upgrade.toml.test /etc/upgrade.toml
+# several packages, and a glob that matches upgrade
+sed -i '/^\[options\]$/a IgnorePkg = sl upgr*' /etc/pacman.conf
+run root upgrade
+expect "with upgrade in pacman.conf's IgnorePkg, upgrade succeeds" ok
+check "and doesn't upgrade itself from the AUR" saw 'Not upgrading upgrade from the AUR, since IgnorePkg in pacman.conf has it.'
+sed -i '/^IgnorePkg = sl upgr\*$/d' /etc/pacman.conf
+
+echo '== A failed step'
+# a yay that always fails, so the run's AUR upgrade does
+mv /usr/bin/yay /usr/bin/yay.test
+printf '#!/bin/sh\nexit 1\n' >/usr/bin/yay
+chmod 755 /usr/bin/yay
+pacman -S --noconfirm --asdeps sl
+runuser -u aur-upgrader -- mkdir -p /var/lib/aur-upgrader/.cache/test
+run root upgrade
+expect "a run where the AUR upgrade fails, fails" failed
+check "it says so and carries on" saw 'Upgrading AUR packages failed, continuing with the rest of the upgrade.'
+check "and has a notice of it" has_notice failed-upgrading-aur-packages
+check "to autoremove, which removes the orphan" not pacman -Qq sl 2>/dev/null
+check "but doesn't clean the cache, so the build files are still there to look at" test -e /var/lib/aur-upgrader/.cache/test
+mv /usr/bin/yay.test /usr/bin/yay
+
+echo '== Notices'
+run root upgrade
+expect "the next run succeeds" ok
+check "and clears the failed step's notice" not has_notice failed-
+run alice upgrade ack
+expect "alice can't acknowledge notices, since only root can" failed
+run root upgrade ack
+expect "root can" ok
+check "which clears them, other than any pacnew files" test -z "$(ls /var/lib/upgrade/notices | grep -v '^pacnew-')"
+
+cp /etc/pacman.conf /etc/pacman.conf.pacnew
+run root upgrade
+check "a pacnew file gets a notice" notices_say /etc/pacman.conf.pacnew
+check "which the run shows at the end" saw 'needs your attention'
+check "and the motd says so in one line, naming its channel" grep -qx '\[motd\] upgrade: .*, see `upgrade status`\.' /var/lib/upgrade/motd
+check "and nothing more" test "$(wc -l </var/lib/upgrade/motd)" = 1
+run dave upgrade status
+check "upgrade status shows it to anyone" saw /etc/pacman.conf.pacnew
+check "alice's login shell shows the summary" grep -qF '[shell] upgrade:' <<<"$(as alice bash -lic true 2>&1)"
+check "and so does dave's, though he isn't an admin" grep -qF '[shell] upgrade:' <<<"$(as dave bash -lic true 2>&1)"
+pacman -S --noconfirm --needed fish >/dev/null
+check "and alice's fish shows it too" grep -qF '[shell] upgrade:' <<<"$(as alice fish -ic true 2>&1)"
+run root upgrade ack
+check "acknowledging shows the notice again" saw /etc/pacman.conf.pacnew
+check "but keeps it, since pacdiff still lists the file" notices_say /etc/pacman.conf.pacnew
+check "and says why" saw "pacnew files stay listed until they're merged or deleted"
+check "so the motd still has the line" test -e /var/lib/upgrade/motd
+run root upgrade
+check "and the next run keeps it too" notices_say /etc/pacman.conf.pacnew
+rm /etc/pacman.conf.pacnew
+run root upgrade ack
+check "once the file is gone, acknowledging clears its notice" not notices_say /etc/pacman.conf.pacnew
+
+# installed at version 1, and upgraded by a run to version 2, whose install script prints a message
+mkdir -p /home/builder/test-notice
+echo 'post_upgrade() { echo "test: read this after upgrading"; }' >/home/builder/test-notice/test-notice.install
+test_package test-notice 1 install=test-notice.install
+pacman -Sy --noconfirm test-notice >/dev/null
+test_package test-notice 2 install=test-notice.install
+run root upgrade
+check "an install script's message gets a notice" notices_say 'test: read this after upgrading'
+run root upgrade ack
+
+# a package and its replacement, so pacman asks whether to replace it. both only in the test repo,
+# since libalpm doesn't replace a package from a repo listed after one that has it, such as extra.
+# installed explicitly, so autoremove leaves it.
+test_package test-old 1
+pacman -Sy --noconfirm test-old >/dev/null
+test_package test-new 1 'replaces=(test-old)' 'conflicts=(test-old)'
+run root upgrade
+expect "with noconfirm on, pacman answers whether to replace a package itself" ok
+check "and replaces it" pacman -Qq test-new
+check "which the run's notice says" notices_say 'Replace test-old with test/test-new'
+run root upgrade ack
+pacman -Rns --noconfirm test-new >/dev/null
+pacman -S --noconfirm test-old >/dev/null
+echo 'noconfirm = false' >>/etc/upgrade.toml
+run root upgrade
+expect "with noconfirm off, a run that pacman has a question for is blocked" failed
+check "it says why" saw 'pacman has questions for the upgrade, which wait for you'
+check "before pacman" not saw 'Upgrading the system with pacman.'
+check "so the package isn't replaced" pacman -Qq test-old
+check "and the question has a notice" notices_say 'Replace test-old with test/test-new'
+check "the summary says upgrades are blocked" grep -qF 'upgrades are blocked' /var/lib/upgrade/summary
+run root upgrade ack
+check "acknowledging says the next run answers it" saw "The next run answers pacman's questions with their defaults."
+run root upgrade
+expect "the next run succeeds" ok
+check "and replaces the package" pacman -Qq test-new
+sed -i '/^noconfirm = false$/d' /etc/upgrade.toml
+run root upgrade ack
+
+# the real feed. on the first run, posts from before the last full system upgrade count as read, so
+# forgetting the news that was read makes it unread. a news key keeps this from counting as the first.
+forget_news() { sed -i '/^news-/d' /var/lib/upgrade/acknowledged && echo news-test >>/var/lib/upgrade/acknowledged; }
+forget_news
+run root upgrade
+expect "by default, unread news doesn't block upgrades" ok
+check "but has notices" has_notice news-
+run root upgrade ack
+forget_news
+echo 'block_on_news = true' >>/etc/upgrade.toml
+run root upgrade
+expect "with block_on_news on, unread news blocks upgrades" failed
+check "it says so" saw 'Not upgrading packages, since some of the notices listed at the end need you first.'
+check "before pacman" not saw 'Upgrading the system with pacman.'
+check "and the news has notices" has_notice news-
+run root upgrade ack
+run root upgrade
+expect "acknowledging it unblocks upgrades" ok
+sed -i '/^block_on_news = true$/d' /etc/upgrade.toml
+
+echo '== A run that upgrades upgrade'
+# a newer copy of the package in the repo, so the run's pacman -Syu upgrades upgrade
+mkdir /tmp/newer
+bsdtar -xf /srv/test-repo/upgrade-*.pkg.tar.zst -C /tmp/newer
+sed -i 's/^pkgver = .*/&.1/' /tmp/newer/.PKGINFO
+newer="upgrade-${expected#upgrade }.1-any.pkg.tar.zst"
+(cd /tmp/newer && bsdtar --zstd -cf "/srv/test-repo/$newer" .PKGINFO .BUILDINFO .MTREE .INSTALL *)
+repo-add -q /srv/test-repo/test.db.tar.gz "/srv/test-repo/$newer"
+run root upgrade
+expect "a run that upgrades upgrade succeeds" ok
+check "and continues with the new version" saw 'Continuing the run with the new version of upgrade.'
+check "which starts the run over" test "$(grep -c '^Upgrading the system with pacman.$' <<<"$output")" = 2
+check "upgrade is now $expected.1" test "$(pacman -Q upgrade)" = "$expected.1"
+
+finished=yes
+echo
+if (( failures > 0 )); then
+    echo "$failures checks failed."
+    exit 1
+fi
+echo 'All checks passed.'

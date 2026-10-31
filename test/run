@@ -1,0 +1,100 @@
+#!/usr/bin/bash
+# end-to-end test, run as your own user, or by .github/workflows/test.yml. boots the official arch
+# cloud image in qemu, builds and installs this checkout there, uncommitted changes included, then
+# checks it, see test/checks. needs qemu and access to /dev/kvm. the image is downloaded once, to
+# ~/.cache, and never changed, since the vm writes to a throwaway overlay.
+set -euo pipefail
+cd "$(dirname "$0")/.."
+images=https://geo.mirror.pkgbuild.com/images/latest
+image=Arch-Linux-x86_64-cloudimg.qcow2
+cache=${XDG_CACHE_HOME:-$HOME/.cache}/upgrade-test
+ssh_port=10022
+http_port=10080
+
+if [[ $EUID == 0 ]]; then
+    echo 'Run this as your own user, not root.' >&2
+    exit 1
+fi
+
+# download the image only when the mirror has a newer one, then check it
+mkdir -p "$cache"
+newer_than=()
+[[ -e $cache/$image ]] && newer_than=(-z "$cache/$image")
+curl -fL "${newer_than[@]}" -o "$cache/$image" "$images/$image"
+curl -fsSL -o "$cache/$image.SHA256" "$images/$image.SHA256"
+(cd "$cache" && sha256sum --quiet -c "$image.SHA256")
+
+# everything for this run goes here, on disk rather than in /tmp, which is usually in memory
+tmp=$(mktemp -d -p /var/tmp upgrade-test.XXXXXX)
+trap 'kill $(jobs -p) 2>/dev/null; rm -rf "$tmp"' EXIT
+
+# the vm writes to an overlay, which is also bigger than the image's 2 GiB. cloud-init grows the
+# filesystem to fill it on the first boot.
+qemu-img create -q -f qcow2 -F qcow2 -b "$cache/$image" "$tmp/disk.qcow2" 20G
+
+# a throwaway ssh key, which cloud-init gives root on the first boot. cloud-init reads its settings
+# from a web server on this machine, which the vm reaches at 10.0.2.2.
+ssh-keygen -q -t ed25519 -N '' -f "$tmp/key"
+mkdir "$tmp/seed"
+echo 'instance-id: upgrade-test' >"$tmp/seed/meta-data"
+printf '#cloud-config\ndisable_root: false\nssh_authorized_keys:\n  - %s\n' "$(cat "$tmp/key.pub")" >"$tmp/seed/user-data"
+: >"$tmp/seed/vendor-data"
+python3 -m http.server --bind 127.0.0.1 --directory "$tmp/seed" "$http_port" >/dev/null 2>&1 &
+cat >"$tmp/ssh_config" <<EOF
+Host vm
+    HostName 127.0.0.1
+    Port $ssh_port
+    User root
+    IdentityFile $tmp/key
+    UserKnownHostsFile /dev/null
+    StrictHostKeyChecking no
+    LogLevel ERROR
+EOF
+
+qemu-system-x86_64 -accel kvm -cpu host -m 4G -smp 4 -display none \
+    -drive "file=$tmp/disk.qcow2,if=virtio,format=qcow2" \
+    -nic "user,model=virtio-net-pci,hostfwd=tcp:127.0.0.1:$ssh_port-:22" \
+    -smbios "type=1,serial=ds=nocloud;s=http://10.0.2.2:$http_port/" \
+    -serial "file:$tmp/console.log" &
+qemu=$!
+
+echo 'Waiting for the VM to boot.'
+deadline=$((SECONDS + 300))
+until ssh -F "$tmp/ssh_config" -o BatchMode=yes -o ConnectTimeout=5 vm true 2>/dev/null; do
+    if ! kill -0 "$qemu" 2>/dev/null || (( SECONDS > deadline )); then
+        echo "The VM stopped, or didn't come up within 5 minutes. The end of its console:" >&2
+        tail -30 "$tmp/console.log" >&2
+        exit 1
+    fi
+    sleep 5
+done
+
+# this machine's mirrors, if it's arch, since the image only has the worldwide ones, which can be
+# slow from here
+if [[ -e /etc/pacman.d/mirrorlist ]]; then
+    scp -F "$tmp/ssh_config" -q /etc/pacman.d/mirrorlist vm:/etc/pacman.d/mirrorlist
+fi
+# the checkout, which test/checks builds the package from, like ./makepkg does
+ssh -F "$tmp/ssh_config" vm mkdir /srv/test-src
+tar -c --exclude=.git --exclude=./dist . | ssh -F "$tmp/ssh_config" vm tar -x -C /srv/test-src
+scp -F "$tmp/ssh_config" -q test/checks vm:/root/checks
+# a terminal for the checks when there's one here, so ctrl-c here stops them
+terminal=()
+[[ -t 0 ]] && terminal=(-t)
+status=0
+ssh -F "$tmp/ssh_config" "${terminal[@]}" vm /root/checks || status=$?
+
+# the check by hand needs someone at a terminal, so it's skipped in ci. a shell rather than su -c,
+# which runs its command without a terminal, so polkit couldn't ask.
+if [[ -t 0 ]]; then
+    cat <<EOF
+
+The VM is still running, so you can do this check by hand from another terminal. Press Enter here
+when you're done, to stop it.
+bob is in wheel but not upgraders, so upgrade should ask for a wheel member's password. Open a shell
+as bob, run upgrade, pick bob, whose password is "test", then exit:
+  ssh -F $tmp/ssh_config -t vm su - bob
+EOF
+    read -r || true
+fi
+exit "$status"
