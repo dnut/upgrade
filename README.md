@@ -1,16 +1,29 @@
-# upgrade
+# `upgrade` - Automate Arch Linux upgrades.
 
-Automate Arch Linux upgrades.
+Finally, the system can update itself.
 
-Finally, there is one command, `upgrade`, to upgrade your entire system with zero user input.
+**Install:**
+```sh
+yay -S upgrade
+```
 
-You should always keep your system up to date! If you'd like updates to happen fully automatically in the background, turn on its timer with `systemctl enable --now upgrade.timer`, as pacman reminds you after installing. `upgrade` will then run automatically every hour and 15 minutes after boot, so you never need to run a manual upgrade again.
+**Run a full system upgrade (pacman, flatpak, optionally AUR):**
+```sh
+upgrade
+```
+
+**Enable unattended updates:**
+```sh
+systemctl enable --now upgrade.timer
+```
+
+`upgrade` will then run automatically every hour and 15 minutes after boot, so you no longer need to run routine manual upgrades.
 
 Please read the [Risks](#risks) section below to understand why this functionality is not built-in to the system already, and why I have created it.
 
 If you choose to enable AUR upgrades, `upgrade` will use either yay or paru under the hood, depending on what you have installed. It prefers yay if both are installed, since paru has a recent history of breakages that prevented upgrades and were not fixed for several months.
 
-If there are conflicts or other problems with the upgrade, you will need to manually resolve them. There will also inevitably be messages printed by pacman, such as notifications about pacnew/pacsave files and other announcements from packages, that typically require administrative maintenance after upgrades. So it's a good idea to occasionally check `journalctl -u upgrade` for any of this.
+If there are conflicts or other problems that make it impossible to update automatically, you will need to manually resolve them. There will also inevitably be messages printed by pacman, such as notifications about pacnew/pacsave files and other announcements from packages, that typically require administrative maintenance after upgrades. So it's a good idea to occasionally check `journalctl -u upgrade` for any of this.
 
 ## Running it yourself
 
