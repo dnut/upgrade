@@ -350,7 +350,7 @@ def publish(options, realtime=True):
     blocked = blocked_by(options)
     count = "1 notice needs" if len(current) == 1 else f"{len(current)} notices need"
     headline = f"upgrade: {'upgrades are blocked, and ' * bool(blocked)}{count} your attention"
-    line = headline + ", see upgrade status.\n"
+    line = headline + ", see `upgrade status`.\n"
     lines = headline + ":\n" + indent(titles)
     lines += "See them with upgrade status, and once they're handled, run sudo upgrade ack.\n"
     for channel, path, text in [("shell", SUMMARY, line), ("motd", MOTD, lines)]:
