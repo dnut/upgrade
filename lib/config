@@ -1,14 +1,20 @@
 #!/usr/bin/python -I
-# prints the name of each option that's on, one per line. /etc/upgrade.toml is optional, and only
-# needs the options that differ from defaults.toml. any value but true turns an option off. old
-# upgrade.conf files, moved to upgrade.toml, may quote it.
+# prints the options that are on, one per line: the name of each true option, and name:entry for
+# each entry of a list. /etc/upgrade.toml is optional, and only needs the options that differ from
+# defaults.toml. any value but true turns an option off. old upgrade.conf files, moved to
+# upgrade.toml, may quote it. a list can only have entries from its default.
 import os
+import sys
 import tomllib
 
 config = "/etc/upgrade.toml"
-options = tomllib.load(open("/usr/lib/upgrade/defaults.toml", "rb"))
-if os.path.exists(config):
-    options |= tomllib.load(open(config, "rb"))
+defaults = tomllib.load(open("/usr/lib/upgrade/defaults.toml", "rb"))
+options = defaults | (tomllib.load(open(config, "rb")) if os.path.exists(config) else {})
 for name, value in options.items():
-    if value is True or value == "true":
+    if isinstance(defaults.get(name), list):
+        if not isinstance(value, list) or not set(value) <= set(defaults[name]):
+            sys.exit(f"{config}: {name} should be a list of some of {defaults[name]}")
+        for entry in value:
+            print(f"{name}:{entry}")
+    elif value is True or value == "true":
         print(name)

@@ -1,0 +1,264 @@
+#!/usr/bin/python -I
+"""Show and acknowledge what upgrade runs left for the admin to read or handle."""
+
+# notices are files in /var/lib/upgrade/notices: a one-line title, then the details. events, named
+# run-*, are what one run printed, and acknowledging deletes them. conditions are checked again on
+# every run. acknowledging one silences its key while the condition holds, and once it's gone, the
+# key is forgotten too, so the condition is new if it comes back.
+
+import argparse
+import grp
+import hashlib
+import os
+import pwd
+import re
+import subprocess
+import time
+from pathlib import Path
+
+STATE = Path("/var/lib/upgrade")
+NOTICES = STATE / "notices"
+ACKNOWLEDGED = STATE / "acknowledged"
+# the time of the last realtime notification, then the notices there were at the last publish
+PUBLISHED = STATE / "published"
+SUMMARY = STATE / "summary"
+MOTD = STATE / "motd"
+
+
+def config():
+    return subprocess.run(
+        ["/usr/lib/upgrade/config"], stdout=subprocess.PIPE, text=True, check=True
+    ).stdout.split()
+
+
+def notices():
+    """the outstanding notices, {key: text}, oldest first"""
+    paths = sorted(NOTICES.glob("*"), key=lambda path: path.stat().st_mtime)
+    return {path.name: path.read_text() for path in paths}
+
+
+def acknowledged():
+    return set(ACKNOWLEDGED.read_text().split()) if ACKNOWLEDGED.exists() else set()
+
+
+def save_acknowledged(keys):
+    ACKNOWLEDGED.write_text("".join(key + "\n" for key in sorted(keys)))
+
+
+def write(key, text):
+    """writes a notice, unless it's acknowledged or already says that"""
+    path = NOTICES / key
+    if key not in acknowledged() and not (path.exists() and path.read_text() == text):
+        NOTICES.mkdir(parents=True, exist_ok=True)
+        path.write_text(text)
+
+
+def refresh(kind, current):
+    """makes a kind of condition's notices match current, {key: text}. the ones that are gone lose
+    their notice and their acknowledgement."""
+    for key, text in current.items():
+        write(key, text)
+    for path in NOTICES.glob(kind + "-*"):
+        if path.name not in current:
+            path.unlink()
+    keys = acknowledged()
+    kept = {key for key in keys if not key.startswith(kind + "-") or key in current}
+    if kept != keys:
+        save_acknowledged(kept)
+
+
+def slug(text):
+    return re.sub(r"[^a-z0-9]+", "-", text.lower()).strip("-")
+
+
+def indent(lines):
+    return "".join(f"    {line}\n" for line in lines)
+
+
+def script_output(run):
+    """what install scripts printed during the run, from pacman.log, under the package they're from.
+    hooks are left out, since most of what they print, such as mkinitcpio's, is routine."""
+    log = subprocess.run(["pacman-conf", "LogFile"], stdout=subprocess.PIPE, text=True).stdout
+    inode, size = map(int, (run / "log-position").read_text().split())
+    with open(log.strip(), "rb") as file:
+        # logrotate may have moved or emptied the log since, and then it's all from this run
+        stat = os.fstat(file.fileno())
+        if stat.st_ino == inode and stat.st_size >= size:
+            file.seek(size)
+        lines = file.read().decode(errors="replace").splitlines()
+
+    output, package, shown = [], None, None
+    for line in lines:
+        message = re.sub(r"^\[[^]]*\] ", "", line)
+        if match := re.match(r"\[ALPM\] (?:installed|upgraded|reinstalled|downgraded|removed) (.*)", message):
+            package = match[1]
+        elif message.startswith("[ALPM] running '"):
+            package = None
+        elif message.startswith("[ALPM-SCRIPTLET] ") and package:
+            if package != shown:
+                output.append(package + ":")
+                shown = package
+            output.append("    " + message.removeprefix("[ALPM-SCRIPTLET] "))
+    return output
+
+
+def transactions(output):
+    """each pacman -Syu in the run's output that went ahead with its transaction, as (what it printed
+    before proceeding, what it printed after). what comes before is printed again by every run until
+    it's dealt with, such as IgnorePkg's warnings, so only questions are taken from it."""
+    for run in re.split(r"^:: Synchronizing package databases\.\.\.$", output, flags=re.M):
+        if ":: Proceed with installation? [Y/n]" in run:
+            yield run.split(":: Proceed with installation? [Y/n]", 1)
+
+
+def questions(text):
+    """pacman's questions, other than whether to proceed. at the end of its input, pacman carries on
+    in the same line, so each question is cut at its answer's prompt."""
+    found = re.findall(r"::.*?\[(?:Y/n|y/N)\]|:: There are \d+ providers available for .*?:", text)
+    return [question for question in found if "Proceed with" not in question]
+
+
+def run_event(run):
+    """a notice of what the run printed for the admin to read, if anything"""
+    output = (run / "pacman.out").read_text(errors="replace") if (run / "pacman.out").exists() else ""
+    asked, optional, warned = [], [], []
+    for before, after in transactions(output):
+        asked += questions(before)
+        optional += re.findall(r"^New optional dependencies for .*\n(?:[ \t]+.*\n)*", after, re.M)
+        warned += [
+            line for line in after.splitlines()
+            # pacnew and pacsave files have their own notices
+            if line.startswith(("warning:", "error:")) and not re.search(r"\.pac(new|save)$", line)
+        ]
+
+    sections = []
+    if scripts := script_output(run):
+        sections.append("Install scripts printed:\n" + indent(scripts))
+    if asked:
+        sections.append("pacman answered these itself, with the default, the capital letter or 1:\n" + indent(asked))
+    if optional:
+        sections.append("".join(optional))
+    if warned:
+        sections.append("pacman warned:\n" + indent(warned))
+    if sections:
+        title = f"The upgrade at {time.strftime('%Y-%m-%d %H:%M')} printed something to read"
+        write(f"run-{time.strftime('%Y%m%d%H%M%S')}", title + "\n\n" + "\n".join(sections))
+
+
+def pacnew():
+    """refreshes the notices of pacnew, pacsave and pacorig files. a new file with other contents is a
+    new notice, even if the old one was acknowledged."""
+    paths = subprocess.run(["pacdiff", "-o"], stdout=subprocess.PIPE, text=True).stdout.splitlines()
+    refresh("pacnew", {
+        "pacnew-" + hashlib.sha256(path.encode() + Path(path).read_bytes()).hexdigest()[:16]:
+            f"{path} is waiting to be merged or deleted\n"
+        for path in paths
+    })
+
+
+def failures(run):
+    """refreshes the notices of failed steps. a run that ended early adds one, and one that finished
+    keeps only those that failed this time."""
+    now = time.strftime("%Y-%m-%d %H:%M")
+    journal = subprocess.run(
+        ["journalctl", f"_SYSTEMD_INVOCATION_ID={os.environ.get('INVOCATION_ID', '')}", "-o", "cat", "-n", "20"],
+        stdout=subprocess.PIPE, text=True,
+    ).stdout
+    details = f"\nThe end of its log, see journalctl -u upgrade for all of it:\n{indent(journal.splitlines())}"
+    if not (run / "finished").exists():
+        write("failed-run", f"The upgrade at {now} stopped with an error\n" + details)
+    else:
+        steps = (run / "failed").read_text().splitlines() if (run / "failed").exists() else []
+        refresh("failed", {f"failed-{slug(step)}": f"{step} failed in the upgrade at {now}\n" + details for step in steps})
+
+
+def publish(enabled, realtime=True):
+    """writes the summary for shells and the motd, and when a notice is new, sends the realtime
+    notifications"""
+    current = notices()
+    titles = [text.split("\n", 1)[0] for text in current.values()]
+    count = "1 notice needs" if len(current) == 1 else f"{len(current)} notices need"
+    headline = f"upgrade: {count} your attention"
+    lines = headline + ":\n" + indent(titles) + "See them with upgrade status, and once they're handled, run sudo upgrade ack.\n"
+    for channel, path, text in [("shell", SUMMARY, headline + ", see upgrade status.\n"), ("motd", MOTD, lines)]:
+        if current and f"notifications:{channel}" in enabled:
+            path.write_text(text)
+        else:
+            path.unlink(missing_ok=True)
+
+    published = PUBLISHED.read_text().split() if PUBLISHED.exists() else ["0"]
+    sent = float(published[0])
+    if realtime and set(current) - set(published[1:]):
+        if "notifications:wall" in enabled:
+            subprocess.run(["wall", lines])
+        if "notifications:desktop" in enabled:
+            desktop(headline, indent(titles))
+        sent = time.time()
+    PUBLISHED.write_text(f"{sent}\n" + "".join(key + "\n" for key in current))
+    if current:
+        print(lines, end="")
+
+
+def desktop(title, body):
+    """a desktop notification for each admin with a session bus: root, and members of wheel and
+    upgraders. as each of them, like as-aur-upgrader does for builds. errors, such as no desktop or
+    no notify-send, are ignored."""
+    for uid in map(int, os.listdir("/run/user")):
+        user = pwd.getpwuid(uid)
+        groups = {grp.getgrgid(gid).gr_name for gid in os.getgrouplist(user.pw_name, user.pw_gid)}
+        if uid == 0 or groups & {"wheel", "upgraders"}:
+            subprocess.run(
+                ["timeout", "10", "setpriv", f"--reuid={uid}", f"--regid={user.pw_gid}", "--init-groups",
+                 "env", f"DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/{uid}/bus",
+                 "notify-send", "--app-name=upgrade", title, body],
+                stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+            )
+
+
+def after():
+    """records what the run left for the admin, and tells them. the upgrade worker runs this when the
+    run ends, however it ends."""
+    run = Path(os.environ["UPGRADE_RUN"])
+    run_event(run)
+    pacnew()
+    failures(run)
+    publish(config())
+
+
+def status():
+    current = notices()
+    for text in current.values():
+        print(text)
+    print("Once these are handled, run sudo upgrade ack." if current else "Nothing needs your attention.")
+
+
+def ack():
+    """shows every notice, then acknowledges them, while holding the upgrade lock, so no run adds one
+    in between"""
+    current = notices()
+    for text in current.values():
+        print(text)
+    keys = acknowledged()
+    for key in current:
+        if not key.startswith("run-"):
+            keys.add(key)
+        (NOTICES / key).unlink()
+    save_acknowledged(keys)
+    publish(config(), realtime=False)
+    print(f"Acknowledged {len(current)} notice{'s' * (len(current) != 1)}.")
+
+
+def main():
+    # the summary and motd are read by every admin's shell, whoever writes them
+    os.umask(0o022)
+    parser = argparse.ArgumentParser(description=__doc__)
+    commands = parser.add_subparsers(dest="command", required=True)
+    commands.add_parser("status", help="show every notice")
+    commands.add_parser("ack", help="show every notice, then acknowledge them. root only.")
+    commands.add_parser("after", help="record what the run left, and notify. the upgrade worker runs this.")
+    command = parser.parse_args().command
+    {"status": status, "ack": ack, "after": after}[command]()
+
+
+if __name__ == "__main__":
+    main()

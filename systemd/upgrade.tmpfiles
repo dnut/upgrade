@@ -2,3 +2,5 @@
 f /run/upgrade.lock 0600 root root -
 # home of the aur-upgrader user, which builds AUR packages
 d /var/lib/aur-upgrader 0700 aur-upgrader aur-upgrader -
+# notices of what upgrade runs left for the admin. readable by all, for the summary in their shells.
+d /var/lib/upgrade 0755 root root -

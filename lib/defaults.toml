@@ -15,3 +15,8 @@ clean_cache_on_success = true
 # this is deliberately conservative and does not touch
 # packages that are still optional dependencies.
 autoremove = true
+
+# how to tell admins about notices, which are what runs leave for them to read or handle. see
+# "Notices" in the README. motd shows them at console and ssh logins, shell in login shells of root,
+# wheel and upgraders, wall on the terminals of everyone logged in, and desktop as notifications.
+notifications = ["motd", "shell", "wall", "desktop"]

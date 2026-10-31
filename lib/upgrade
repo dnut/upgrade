@@ -21,16 +21,31 @@ fi
 enabled=$(/usr/lib/upgrade/config)
 is_enabled() { grep -qxF "$1" <<<"$enabled"; }
 
+# notes on the run for lib/notices, kept across the hand-off below, so the new worker reports the
+# whole run: where pacman.log ended when the run started, pacman's output, and the steps that failed
+export UPGRADE_RUN=${UPGRADE_RUN:-$(mktemp -d)}
+[[ -e $UPGRADE_RUN/log-position ]] || stat -c '%i %s' "$(pacman-conf LogFile)" >"$UPGRADE_RUN/log-position"
+# however the run ends, record what it left for the admin, and tell them
+on_exit() {
+    local status=$?
+    /usr/lib/upgrade/notices after || status=1
+    rm -rf "$UPGRADE_RUN"
+    exit "$status"
+}
+trap on_exit EXIT
+
 # pacman -Syu, or self-upgrade below, can install a new version of upgrade itself
 version=$(pacman -Q upgrade)
 echo Upgrading the system with pacman.
-pacman -Syu --noconfirm
+# in English, since lib/notices reads its output
+LANG=C pacman -Syu --noconfirm 2>&1 | tee -a "$UPGRADE_RUN/pacman.out"
 
 # a failed step below doesn't stop the ones after it, but still fails the run at the end
 failed=false
 # says a step failed, and that the run carries on without it
 step_failed() {
     echo "$1 failed, continuing with the rest of the upgrade." >&2
+    echo "$1" >>"$UPGRADE_RUN/failed"
     failed=true
 }
 
@@ -71,6 +86,8 @@ if is_enabled clean_cache_on_success && ! $failed; then
     /usr/lib/upgrade/clearpkgcache
 fi
 
+# a run that stops before here, on an error, is a failure that lib/notices reports differently
+touch "$UPGRADE_RUN/finished"
 if $failed; then
     exit 1
 fi

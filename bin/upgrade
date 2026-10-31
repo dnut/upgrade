@@ -1,9 +1,20 @@
 #!/usr/bin/bash
-# upgrades the system. the upgrade runs in upgrade.service, which this starts and follows.
+# upgrades the system. the upgrade runs in upgrade.service, which this starts and follows. status
+# shows the notices of what runs left for the admin, and ack acknowledges them.
 set -euo pipefail
 
-if (( $# > 0 )); then
-    echo 'usage: upgrade' >&2
-    exit 1
-fi
-exec /usr/lib/upgrade/run-oneshot upgrade.service
+case $* in
+    '')
+        exec /usr/lib/upgrade/run-oneshot upgrade.service ;;
+    status)
+        exec /usr/lib/upgrade/notices status ;;
+    ack)
+        if [[ $EUID != 0 ]]; then
+            echo 'Only root can acknowledge notices, try sudo upgrade ack.' >&2
+            exit 1
+        fi
+        exec /usr/lib/upgrade/locked /usr/lib/upgrade/notices ack ;;
+    *)
+        echo 'usage: upgrade [status | ack]' >&2
+        exit 1 ;;
+esac
