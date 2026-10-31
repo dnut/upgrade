@@ -34,12 +34,6 @@ on_exit() {
 }
 trap on_exit EXIT
 
-# pacman -Syu, or self-upgrade below, can install a new version of upgrade itself
-version=$(pacman -Q upgrade)
-echo Upgrading the system with pacman.
-# in English, since lib/notices reads its output
-LANG=C pacman -Syu --noconfirm 2>&1 | tee -a "$UPGRADE_RUN/pacman.out"
-
 # a failed step below doesn't stop the ones after it, but still fails the run at the end
 failed=false
 # says a step failed, and that the run carries on without it
@@ -48,6 +42,29 @@ step_failed() {
     echo "$1" >>"$UPGRADE_RUN/failed"
     failed=true
 }
+
+upgrade_flatpak() {
+    if is_enabled upgrade_flatpak && command -v flatpak >/dev/null; then
+        echo Upgrading flatpak packages.
+        flatpak update --noninteractive || step_failed "Upgrading flatpak packages"
+    fi
+}
+
+# until the admin has handled what blocks upgrades, such as unread news, nothing goes through pacman
+# and the run fails. flatpak doesn't involve pacman, so it still upgrades.
+/usr/lib/upgrade/notices news
+if /usr/lib/upgrade/notices blocking; then
+    touch "$UPGRADE_RUN/blocked"
+    upgrade_flatpak
+    touch "$UPGRADE_RUN/finished"
+    exit 1
+fi
+
+# pacman -Syu, or self-upgrade below, can install a new version of upgrade itself
+version=$(pacman -Q upgrade)
+echo Upgrading the system with pacman.
+# in English, since lib/notices reads its output
+LANG=C pacman -Syu --noconfirm 2>&1 | tee -a "$UPGRADE_RUN/pacman.out"
 
 # upgrade updates itself from the AUR even with upgrade_aur off, so its own fixes always arrive
 /usr/lib/upgrade/self-upgrade || step_failed "Upgrading upgrade from the AUR"
@@ -72,10 +89,7 @@ if is_enabled upgrade_aur; then
     fi
 fi
 
-if is_enabled upgrade_flatpak && command -v flatpak >/dev/null; then
-    echo Upgrading flatpak packages.
-    flatpak update --noninteractive || step_failed "Upgrading flatpak packages"
-fi
+upgrade_flatpak
 
 if is_enabled autoremove; then
     /usr/lib/upgrade/autoremove --noconfirm || step_failed Autoremove

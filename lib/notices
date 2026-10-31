@@ -13,8 +13,13 @@ import os
 import pwd
 import re
 import subprocess
+import sys
 import time
+import urllib.request
+from datetime import datetime
+from email.utils import parsedate_to_datetime
 from pathlib import Path
+from xml.etree import ElementTree
 
 STATE = Path("/var/lib/upgrade")
 NOTICES = STATE / "notices"
@@ -75,12 +80,53 @@ def indent(lines):
     return "".join(f"    {line}\n" for line in lines)
 
 
+def pacman_log():
+    return subprocess.run(["pacman-conf", "LogFile"], stdout=subprocess.PIPE, text=True).stdout.strip()
+
+
+def news():
+    """refreshes the notices of Arch Linux news posts. on the first run, the posts from before the
+    last full system upgrade count as read, since the admin was upgrading by hand until then."""
+    try:
+        with urllib.request.urlopen("https://archlinux.org/feeds/news/", timeout=30) as response:
+            items = ElementTree.parse(response).findall("channel/item")
+    except (OSError, ElementTree.ParseError) as error:
+        print(f"Couldn't check the Arch Linux news, carrying on without it: {error}")
+        return
+    posts = {}
+    for item in items:
+        link, date = item.findtext("link"), parsedate_to_datetime(item.findtext("pubDate"))
+        text = f"Arch Linux news: {item.findtext('title')} ({date:%Y-%m-%d})\n\n{link}\n"
+        posts["news-" + slug(link.rstrip("/").rsplit("/", 1)[-1])] = date, text
+
+    if not any(key.startswith("news-") for key in acknowledged() | set(notices())):
+        upgrades = [line for line in open(pacman_log(), errors="replace") if "[PACMAN] starting full system upgrade" in line]
+        upgraded = datetime.fromisoformat(upgrades[-1][1:].split("]")[0]) if upgrades else datetime.now().astimezone()
+        save_acknowledged(acknowledged() | {key for key, (date, text) in posts.items() if date < upgraded})
+    refresh("news", {key: text for key, (date, text) in posts.items()})
+
+
+def blocked_by(enabled):
+    """the titles of the notices that block upgrades: news when block_on_news is on"""
+    return [
+        text.split("\n", 1)[0] for key, text in notices().items()
+        if key.startswith("news-") and "block_on_news" in enabled
+    ]
+
+
+def blocking():
+    """says what blocks upgrades and exits 0, or exits 1 when nothing does"""
+    if reasons := blocked_by(config()):
+        print("Not upgrading packages, since these need you first:\n" + indent(reasons), end="")
+        print("See them with upgrade status. Once they're handled, run sudo upgrade ack.")
+    sys.exit(0 if reasons else 1)
+
+
 def script_output(run):
     """what install scripts printed during the run, from pacman.log, under the package they're from.
     hooks are left out, since most of what they print, such as mkinitcpio's, is routine."""
-    log = subprocess.run(["pacman-conf", "LogFile"], stdout=subprocess.PIPE, text=True).stdout
     inode, size = map(int, (run / "log-position").read_text().split())
-    with open(log.strip(), "rb") as file:
+    with open(pacman_log(), "rb") as file:
         # logrotate may have moved or emptied the log since, and then it's all from this run
         stat = os.fstat(file.fileno())
         if stat.st_ino == inode and stat.st_size >= size:
@@ -158,7 +204,9 @@ def pacnew():
 
 def failures(run):
     """refreshes the notices of failed steps. a run that ended early adds one, and one that finished
-    keeps only those that failed this time."""
+    keeps only those that failed this time. a blocked run skipped most steps, so it changes nothing."""
+    if (run / "blocked").exists():
+        return
     now = time.strftime("%Y-%m-%d %H:%M")
     journal = subprocess.run(
         ["journalctl", f"_SYSTEMD_INVOCATION_ID={os.environ.get('INVOCATION_ID', '')}", "-o", "cat", "-n", "20"],
@@ -177,8 +225,9 @@ def publish(enabled, realtime=True):
     notifications"""
     current = notices()
     titles = [text.split("\n", 1)[0] for text in current.values()]
+    blocked = blocked_by(enabled)
     count = "1 notice needs" if len(current) == 1 else f"{len(current)} notices need"
-    headline = f"upgrade: {count} your attention"
+    headline = f"upgrade: {'upgrades are blocked, and ' * bool(blocked)}{count} your attention"
     lines = headline + ":\n" + indent(titles) + "See them with upgrade status, and once they're handled, run sudo upgrade ack.\n"
     for channel, path, text in [("shell", SUMMARY, headline + ", see upgrade status.\n"), ("motd", MOTD, lines)]:
         if current and f"notifications:{channel}" in enabled:
@@ -188,7 +237,8 @@ def publish(enabled, realtime=True):
 
     published = PUBLISHED.read_text().split() if PUBLISHED.exists() else ["0"]
     sent = float(published[0])
-    if realtime and set(current) - set(published[1:]):
+    # while upgrades are blocked, a reminder once a day, since security updates are piling up
+    if realtime and (set(current) - set(published[1:]) or blocked and time.time() - sent > 24 * 60 * 60):
         if "notifications:wall" in enabled:
             subprocess.run(["wall", lines])
         if "notifications:desktop" in enabled:
@@ -253,11 +303,13 @@ def main():
     os.umask(0o022)
     parser = argparse.ArgumentParser(description=__doc__)
     commands = parser.add_subparsers(dest="command", required=True)
+    commands.add_parser("news", help="refresh the notices of Arch Linux news. the upgrade worker runs this.")
+    commands.add_parser("blocking", help="say what blocks upgrades, or exit 1 if nothing does")
     commands.add_parser("status", help="show every notice")
     commands.add_parser("ack", help="show every notice, then acknowledge them. root only.")
     commands.add_parser("after", help="record what the run left, and notify. the upgrade worker runs this.")
     command = parser.parse_args().command
-    {"status": status, "ack": ack, "after": after}[command]()
+    {"news": news, "blocking": blocking, "status": status, "ack": ack, "after": after}[command]()
 
 
 if __name__ == "__main__":
