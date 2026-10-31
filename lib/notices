@@ -128,10 +128,9 @@ def after():
 
 def status():
     current = notices()
-    for text in current.values():
-        print(text)
+    show(current)
     if current:
-        print("Once these are handled, run sudo upgrade ack.")
+        print("\nOnce these are handled, run sudo upgrade ack.")
     else:
         print("Nothing needs your attention.")
 
@@ -142,8 +141,9 @@ def ack():
     gone, and the rest stay."""
     pacnew()
     current = notices()
-    for text in current.values():
-        print(text)
+    show(current)
+    if current:
+        print()
     keys = acknowledged()
     acked = [key for key in current if not key.startswith("pacnew-")]
     for key in acked:
@@ -213,6 +213,16 @@ def slug(text):
 
 def indent(lines):
     return "".join(f"    {line}\n" for line in lines)
+
+
+def show(current):
+    """prints the notices, with a blank line next to each one that has details"""
+    previous = None
+    for text in current.values():
+        if previous and (text.count("\n") > 1 or previous.count("\n") > 1):
+            print()
+        print(text, end="")
+        previous = text
 
 
 def pacman_log():
@@ -305,19 +315,12 @@ def run_event(run):
 
 
 def pacnew():
-    """refreshes the notices of the pacnew, pacsave and pacorig files that pacdiff lists. a new
-    file with other contents is a new notice, so the realtime notifications go out for it."""
+    """refreshes the notices of the pacnew, pacsave and pacorig files that pacdiff lists"""
     pacdiff = subprocess.run(["pacdiff", "-o"], stdout=subprocess.PIPE, text=True)
     paths = pacdiff.stdout.splitlines()
     refresh(
         "pacnew",
-        {
-            "pacnew-"
-            + hashlib.sha256(path.encode() + Path(path).read_bytes()).hexdigest()[
-                :16
-            ]: f"{path} is waiting to be merged or deleted\n"
-            for path in paths
-        },
+        {f"pacnew-{slug(path)}": f"{path} is waiting to be merged or deleted\n" for path in paths},
     )
 
 
