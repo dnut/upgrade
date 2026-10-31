@@ -2,6 +2,22 @@
 # the upgrade worker. runs as root, only from upgrade.service, so it never sees a user's session.
 set -euo pipefail
 
+# the timer's runs wait for mains power and an unmetered connection, but runs started by hand don't.
+# NetworkManager's Metered is 1 for yes and 3 for a guessed yes. without NetworkManager, busctl
+# fails, which counts as unmetered.
+if [[ ${TRIGGER_UNIT-} == upgrade.timer ]]; then
+    if ! systemd-ac-power; then
+        echo Skipping this scheduled upgrade, since the system is on battery.
+        exit
+    fi
+    metered=$(busctl get-property org.freedesktop.NetworkManager /org/freedesktop/NetworkManager \
+        org.freedesktop.NetworkManager Metered 2>/dev/null || true)
+    if [[ $metered == 'u '[13] ]]; then
+        echo Skipping this scheduled upgrade, since the connection is metered.
+        exit
+    fi
+fi
+
 enabled=$(/usr/lib/upgrade/config)
 is_enabled() { grep -qxF "$1" <<<"$enabled"; }
 
