@@ -7,7 +7,6 @@
 # key is forgotten too, so the condition is new if it comes back.
 
 import argparse
-import grp
 import hashlib
 import os
 import pwd
@@ -34,7 +33,7 @@ FEED = STATE / "news.xml"
 
 
 def main():
-    # the summary and motd are read by every admin's shell, whoever writes them
+    # the summary and motd are read by every user's shell, whoever writes them
     os.umask(0o022)
     parser = argparse.ArgumentParser(description=__doc__)
     commands = parser.add_subparsers(dest="command", required=True)
@@ -374,21 +373,18 @@ def publish(options, realtime=True):
 
 
 def desktop(title, body):
-    """a desktop notification for each admin with a session bus: root, and members of wheel and
-    upgraders. as each of them, like as-aur-upgrader does for builds. errors, such as no desktop or
-    no notify-send, are ignored."""
+    """a desktop notification for each user with a session bus, as that user, like as-aur-upgrader
+    does for builds. errors, such as no desktop or no notify-send, are ignored."""
     for uid in map(int, os.listdir("/run/user")):
-        user = pwd.getpwuid(uid)
-        groups = {grp.getgrgid(gid).gr_name for gid in os.getgrouplist(user.pw_name, user.pw_gid)}
-        if uid == 0 or groups & {"wheel", "upgraders"}:
-            as_user = ["setpriv", f"--reuid={uid}", f"--regid={user.pw_gid}", "--init-groups"]
-            bus = f"DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/{uid}/bus"
-            notify = ["notify-send", "--app-name=upgrade", title, body]
-            subprocess.run(
-                ["timeout", "10", *as_user, "env", bus, *notify],
-                stdout=subprocess.DEVNULL,
-                stderr=subprocess.DEVNULL,
-            )
+        gid = pwd.getpwuid(uid).pw_gid
+        as_user = ["setpriv", f"--reuid={uid}", f"--regid={gid}", "--init-groups"]
+        bus = f"DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/{uid}/bus"
+        notify = ["notify-send", "--app-name=upgrade", title, body]
+        subprocess.run(
+            ["timeout", "10", *as_user, "env", bus, *notify],
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+        )
 
 
 if __name__ == "__main__":

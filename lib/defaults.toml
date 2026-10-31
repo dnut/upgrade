@@ -26,8 +26,8 @@ noconfirm = true
 # to upgrade right away, which this would hold back. news is a notice either way.
 block_on_news = false
 
-# how to tell admins about notices, which are what runs leave for them to read or handle. see
-# "Notices" in the README. motd, shell and wall each show a line saying how many there are: motd at
-# console and ssh logins, shell in login shells of root, wheel and upgraders, and wall on the
-# terminals of everyone logged in. desktop lists them in a notification.
+# how to tell everyone about notices, which are what runs leave for the admin to read or handle.
+# see "Notices" in the README. motd, shell and wall each show a line saying how many there are:
+# motd at console and ssh logins, shell in interactive login shells, and wall on the terminals of
+# everyone logged in. desktop lists them in a notification for everyone with a desktop session.
 notifications = ["motd", "shell", "wall", "desktop"]

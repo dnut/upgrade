@@ -107,9 +107,9 @@ Some notices can block upgrades until they're acknowledged: Arch Linux news when
 
 You're told about notices in the ways that `notifications` in /etc/upgrade.toml lists, all of them by default:
 - `motd`: a one-line summary at console and SSH logins, through pam_motd. Everyone who logs in sees it.
-- `shell`: the same line in the login shells of root, `wheel` and `upgraders`, and in all their interactive fish shells. To see it in every bash or zsh, add `. /etc/profile.d/upgrade.sh` to your `~/.bashrc` or `~/.zshrc`.
+- `shell`: the same line in interactive login shells, and in every interactive fish shell. To see it in every bash or zsh, add `. /etc/profile.d/upgrade.sh` to your `~/.bashrc` or `~/.zshrc`.
 - `wall`: a one-line message on the terminals of everyone logged in.
-- `desktop`: a desktop notification for root, `wheel` and `upgraders`, if libnotify is installed.
+- `desktop`: a desktop notification for everyone with a desktop session, if libnotify is installed.
 
 The `motd`, `shell` and `wall` lines start with the channel's name, such as `[motd]`, so you know which entry of `notifications` shows them. An SSH login shows both `motd` and `shell`, so you see the line twice unless you turn one of them off.
 

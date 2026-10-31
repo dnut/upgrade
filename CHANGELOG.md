@@ -3,7 +3,7 @@
 `upgrade` now tells you what unattended upgrades leave for you to handle, and can stop for the decisions you'd make in an interactive upgrade.
 
 - **Notices**: each run records what needs your attention: Arch Linux news, pacman's questions, `.pacnew` files, what install scripts printed, pacman's warnings and errors, and failures. `upgrade status` shows them, and root acknowledges them with `upgrade ack`.
-  - You're told about them in the motd, in admins' shells, with wall and with desktop notifications. `notifications` chooses which.
+  - Everyone is told about them in the motd, in their shells, with wall and with desktop notifications. `notifications` chooses which.
 - **`block_on_news = true`** stops upgrades while there's Arch Linux news that hasn't been acknowledged.
 - **`noconfirm = false`** makes upgrades wait for you to answer pacman's questions, instead of answering them with the defaults.
 - While upgrades are blocked, only flatpak packages upgrade.
